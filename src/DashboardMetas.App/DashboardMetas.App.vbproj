@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>DashboardMetas.App</RootNamespace>
+    <AssemblyName>DashboardMetas</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <!-- The JDE ODBC DSN is 32-bit: the process must be x86 -->
+    <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Title>Dashboard Metas</Title>
+    <AssemblyTitle>Dashboard Metas - Avance de metas de producción</AssemblyTitle>
+    <Description>Tablero de avance por área contra la meta diaria, con datos de JD Edwards</Description>
+    <PublishDocumentationFiles>false</PublishDocumentationFiles>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+    <SatelliteResourceLanguages>es;en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!-- Portable single-file publish: dotnet publish -c Release -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Import Include="System.Windows" />
+    <Import Include="System.Windows.Controls" />
+    <Import Include="System.Windows.Data" />
+    <Import Include="System.Windows.Input" />
+    <Import Include="System.Windows.Media" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\app.ico" />
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Company-specific file: exists only on the company build machine and is not in source control -->
+    <Content Include="appsettings.empresa.json" Condition="Exists('appsettings.empresa.json')" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+    <PackageReference Include="Serilog" Version="4.4.0" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DashboardMetas.Core\DashboardMetas.Core.vbproj" />
+    <ProjectReference Include="..\DashboardMetas.Data\DashboardMetas.Data.vbproj" />
+  </ItemGroup>
+
+</Project>

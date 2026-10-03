@@ -1,0 +1,44 @@
+<Window x:Class="AreaPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cambiar de área" Width="460" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Topmost="True"
+        Style="{StaticResource AppWindow}" Icon="pack://application:,,,/Resources/app.ico">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Style="{StaticResource DialogHeader}">
+            <StackPanel>
+                <TextBlock x:Name="TitleText" Text="Cambiar de área" Style="{StaticResource DialogHeaderText}" />
+                <TextBlock x:Name="SubtitleText" Text="Elige el área que se mostrará en pantalla." Foreground="#C6D2E9" Margin="0,2,0,0" />
+            </StackPanel>
+        </Border>
+        <!-- One big button per area: nothing to type -->
+        <ItemsControl x:Name="AreaList" Grid.Row="1" Margin="22,18,22,6" Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Button Click="OnPick" Tag="{Binding Code}" Margin="0,0,0,10" Padding="18,12" HorizontalContentAlignment="Stretch">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}" />
+                                        <Setter Property="BorderThickness" Value="2" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding Code}" Foreground="{StaticResource MutedBrush}" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold" />
+                        </DockPanel>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button x:Name="CancelButton" Grid.Row="2" Content="Cancelar" IsCancel="True" HorizontalAlignment="Right" Width="100" Margin="22,4,22,18" />
+    </Grid>
+</Window>

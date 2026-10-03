@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup>
+    <OptionStrict>On</OptionStrict>
+    <OptionExplicit>On</OptionExplicit>
+    <OptionInfer>On</OptionInfer>
+    <OptionCompare>Binary</OptionCompare>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <Company>Esdras Clother</Company>
+    <Product>Dashboard Metas</Product>
+    <Copyright>Copyright 2026 Esdras Clother - Apache License 2.0</Copyright>
+    <Version>1.0.0</Version>
+    <NeutralLanguage>es</NeutralLanguage>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+</Project>

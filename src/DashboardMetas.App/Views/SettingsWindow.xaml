@@ -1,0 +1,218 @@
+<Window x:Class="SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Configuración" Width="1180" Height="700" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Topmost="True"
+        Style="{StaticResource AppWindow}" Icon="pack://application:,,,/Resources/app.ico">
+    <Window.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,6,14,6" />
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Style="{StaticResource DialogHeader}">
+            <TextBlock Text="Configuración" Style="{StaticResource DialogHeaderText}" />
+        </Border>
+
+        <TabControl Grid.Row="1" Margin="18,14,18,0" Padding="18,10">
+            <!-- ================= Pantalla ================= -->
+            <TabItem Header="_Pantalla">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="GENERAL" Style="{StaticResource SectionTitle}" Margin="0,4,0,8" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="230" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="Idioma de la pantalla" Style="{StaticResource FieldLabel}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+                                <RadioButton Content="Español" GroupName="Lang" IsChecked="{Binding Spanish}" Style="{StaticResource ChoiceButton}" />
+                                <RadioButton Content="English" GroupName="Lang" IsChecked="{Binding English}" Style="{StaticResource ChoiceButton}" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="1" Text="Días de histórico en la gráfica" Style="{StaticResource FieldLabel}" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+                                <TextBox Text="{Binding HistoryDays, UpdateSourceTrigger=PropertyChanged}" Width="70" HorizontalContentAlignment="Center" />
+                                <TextBlock Text="de 5 a 31 (incluye hoy)" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="2" Text="Cambio automático de área" Style="{StaticResource FieldLabel}" />
+                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+                                <RadioButton Content="Activado" GroupName="Rot" IsChecked="{Binding AutoRotate}" Style="{StaticResource ChoiceButton}" />
+                                <RadioButton Content="Desactivado" GroupName="Rot" IsChecked="{Binding NoRotate}" Style="{StaticResource ChoiceButton}" />
+                                <TextBlock Text="cada" VerticalAlignment="Center" Margin="6,0,8,0" />
+                                <TextBox Text="{Binding RotateSeconds, UpdateSourceTrigger=PropertyChanged}" Width="70" HorizontalContentAlignment="Center" />
+                                <TextBlock Text="segundos" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="3" Text="Consultar JDE cada" Style="{StaticResource FieldLabel}" />
+                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+                                <TextBox Text="{Binding RefreshMinutes, UpdateSourceTrigger=PropertyChanged}" Width="70" HorizontalContentAlignment="Center" />
+                                <TextBlock Text="minutos" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            </StackPanel>
+
+                            <CheckBox Grid.Row="4" Grid.Column="1" Content="No mostrar los domingos en la gráfica" IsChecked="{Binding ExcludeSundays}" Margin="0,8" />
+                            <CheckBox Grid.Row="5" Grid.Column="1" Content="Abrir en pantalla completa (F11 cambia, Esc sale)" IsChecked="{Binding StartFullScreen}" Margin="0,4" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,16,0,0"
+                                   Text="Atajos: F5 actualiza, ← → cambian de área, F11 pantalla completa. El puntero se oculta solo en pantalla completa." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ================= Áreas ================= -->
+            <TabItem Header="_Áreas y metas">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,4,0,10"
+                               Text="Nombre en español e inglés, metas en US$, horario del turno (HH:mm) y si el área se muestra. Meta mensual vacía = meta diaria × días laborables del mes. Si el fin es menor que el inicio, el turno termina al día siguiente (ej. 22:00 a 06:00); como JDE registra por fecha calendario, cada día cuenta las horas del turno que caen en esa fecha. La pausa es opcional y no cuenta como tiempo productivo." TextWrapping="Wrap" />
+                    <Button DockPanel.Dock="Bottom" HorizontalAlignment="Left" Margin="0,10,0,0" Content="Copiar el horario de la primera fila a todas" Command="{Binding CopyShiftToAllCommand}" />
+                    <DataGrid ItemsSource="{Binding Areas}" CanUserSortColumns="False" RowHeight="34">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Visible" Binding="{Binding Active, UpdateSourceTrigger=PropertyChanged}" Width="60" />
+                            <DataGridTextColumn Header="Código" Binding="{Binding Code}" IsReadOnly="True" Width="60" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Nombre" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="*" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Nombre (inglés)" Binding="{Binding NameEn, UpdateSourceTrigger=PropertyChanged}" Width="*" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Meta diaria US$" Binding="{Binding GoalText, UpdateSourceTrigger=PropertyChanged}" Width="110" ElementStyle="{StaticResource NumberCell}" />
+                            <DataGridTextColumn Header="Meta mensual" Binding="{Binding MonthlyGoalText, UpdateSourceTrigger=PropertyChanged}" Width="110" ElementStyle="{StaticResource NumberCell}" />
+                            <DataGridTextColumn Header="Inicio" Binding="{Binding ShiftStart, UpdateSourceTrigger=PropertyChanged}" Width="58" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Fin" Binding="{Binding ShiftEnd, UpdateSourceTrigger=PropertyChanged}" Width="58" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Pausa de" Binding="{Binding BreakStart, UpdateSourceTrigger=PropertyChanged}" Width="70" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="a" Binding="{Binding BreakEnd, UpdateSourceTrigger=PropertyChanged}" Width="58" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Fuente" Binding="{Binding SourceText}" IsReadOnly="True" Width="140" ElementStyle="{StaticResource TextCell}">
+                                <DataGridTextColumn.CellStyle>
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                                    </Style>
+                                </DataGridTextColumn.CellStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ================= Conexión ================= -->
+            <TabItem Header="_Conexión JDE">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="0,4,6,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="DSN ODBC (32 bits)" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Column="1" Text="{Binding Dsn}" Margin="0,3" />
+                        <TextBlock Grid.Row="1" Text="Usuario AS400" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding User}" Margin="0,3" CharacterCasing="Upper" />
+                        <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding UseDriverSignOn}" Margin="0,6"
+                                  Content="Usar el inicio de sesión del driver IBM i Access (no pedir contraseña)" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource Hint}" Margin="0,0,0,6">
+                            <Run Text="Contraseña guardada en esta PC:" /> <Run Text="{Binding HasSavedPassword, Mode=OneWay}" FontWeight="SemiBold" />
+                        </TextBlock>
+                        <TextBlock Grid.Row="4" Text="Planta (MCU)" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Branch}" Width="90" HorizontalAlignment="Left" Margin="0,3" />
+
+                        <TextBlock Grid.Row="5" Grid.ColumnSpan="2" Text="BIBLIOTECAS" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Grid.Row="6" Text="Y1: F31122, F4801, F4211" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding AssemblyLibrary}" Margin="0,3" CharacterCasing="Upper" />
+                        <TextBlock Grid.Row="7" Text="Estaciones: F58C3120" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding StationsLibrary}" Margin="0,3" CharacterCasing="Upper" />
+                        <TextBlock Grid.Row="8" Text="Precios: F41D200" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding PricesLibrary}" Margin="0,3" CharacterCasing="Upper" />
+                        <TextBlock Grid.Row="9" Text="Embarques: DCTXF" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding DcLinkLibrary}" Margin="0,3" CharacterCasing="Upper" />
+
+                        <TextBlock Grid.Row="10" Grid.ColumnSpan="2" Text="PARÁMETROS DE LAS CONSULTAS" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Grid.Row="11" Text="Tipo de precio / operación Y1" Style="{StaticResource FieldLabel}" />
+                        <StackPanel Grid.Row="11" Grid.Column="1" Orientation="Horizontal" Margin="0,3">
+                            <TextBox Text="{Binding PriceType}" Width="70" CharacterCasing="Upper" />
+                            <TextBox Text="{Binding AssemblyOperation}" Width="90" Margin="10,0,0,0" />
+                            <TextBlock Text="Transacción embarque" VerticalAlignment="Center" Margin="16,0,8,0" />
+                            <TextBox Text="{Binding ShipmentTransaction}" Width="60" CharacterCasing="Upper" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="12" Text="Divisores (cantidad / precio)" Style="{StaticResource FieldLabel}" />
+                        <StackPanel Grid.Row="12" Grid.Column="1" Orientation="Horizontal" Margin="0,3">
+                            <TextBox Text="{Binding StationsDivisor}" Width="70" />
+                            <TextBox Text="{Binding PriceDivisor}" Width="70" Margin="10,0,0,0" />
+                            <TextBlock Text="1 = como vienen (igual que la versión Access)" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="13" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,16,0,6">
+                            <Button Content="_Diagnóstico…" Command="{Binding DiagnosticsCommand}" />
+                            <Button Content="_Olvidar contraseña" Command="{Binding ForgetPasswordCommand}" Margin="8,0,0,0" />
+                            <Button Content="_Restaurar valores de la empresa" Command="{Binding RestoreCompanyCommand}" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ================= Demo ================= -->
+            <TabItem Header="_Modo demo">
+                <StackPanel Margin="0,4,0,0">
+                    <CheckBox Content="Usar datos inventados (no se conecta a JDE)" IsChecked="{Binding DemoEnabled}" IsEnabled="{Binding DemoEditable}" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="22,4,0,0"
+                               Text="Sirve para probar la pantalla sin AS400. Los datos son estables día a día y el valor de hoy crece durante el turno (6:00 a 16:00). La contraseña «incorrecta» simula CWBSY0002." />
+                    <TextBlock Style="{StaticResource Hint}" Margin="22,4,0,0" Foreground="{StaticResource OrangeTextBrush}"
+                               Text="Abierto con --demo: el modo demo no se puede apagar desde aquí."
+                               Visibility="{Binding DemoForced, Converter={StaticResource BoolToVisibility}}" />
+                    <StackPanel Orientation="Horizontal" Margin="22,16,0,0">
+                        <TextBlock Text="Simular falla de la consulta de" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <ComboBox ItemsSource="{Binding FailingSourceOptions}" SelectedItem="{Binding FailingSource}" Width="140" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="22,4,0,0" Text="Para ver el estado rojo «Sin conexión con JDE» con los últimos datos conservados." />
+                    <StackPanel Orientation="Horizontal" Margin="22,16,0,0">
+                        <TextBlock Text="Simular que el día empieza a las" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <TextBox Text="{Binding SimulatedTime}" Width="130" HorizontalContentAlignment="Center" />
+                        <TextBlock Text="(HH:mm o aaaa-mm-dd HH:mm; vacío = hora real)" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="22,4,0,0" Text="Para ver el ritmo y la proyección a cualquier hora del turno (ej. 11:20). Solo afecta al modo demo." />
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="2" Margin="18,10,18,0" Padding="12,8" Background="{StaticResource DangerBackBrush}" CornerRadius="4"
+                Visibility="{Binding ErrorText, Converter={StaticResource EmptyToCollapsed}}">
+            <TextBlock Text="{Binding ErrorText}" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="18,14,18,18">
+            <Button Content="_Guardar" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" IsDefault="True" Width="110" />
+            <Button Content="Cancelar" IsCancel="True" Width="100" Margin="8,0,0,0" />
+        </StackPanel>
+    </Grid>
+</Window>

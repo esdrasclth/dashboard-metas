@@ -1,0 +1,13 @@
+# Build
+bin/
+obj/
+publish/
+.vs/
+*.user
+TestResults/
+
+# Company-specific / confidential: never commit
+src/DashboardMetas.App/appsettings.empresa.json
+appsettings.empresa.json
+referencia/
+CLAUDE.md

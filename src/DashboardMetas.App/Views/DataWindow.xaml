@@ -1,0 +1,40 @@
+<Window x:Class="DataWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Datos por día" Width="820" Height="620" MinWidth="560" MinHeight="360"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Topmost="True"
+        Style="{StaticResource AppWindow}" Icon="pack://application:,,,/Resources/app.ico">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Style="{StaticResource DialogHeader}">
+            <TextBlock x:Name="HeaderText" Style="{StaticResource DialogHeaderText}" TextTrimming="CharacterEllipsis" />
+        </Border>
+        <DataGrid x:Name="DayGrid" Grid.Row="1" Margin="22,16,22,0" IsReadOnly="True" AutomationProperties.Name="Detalle por día">
+            <DataGrid.Columns>
+                <DataGridTextColumn x:Name="ColDate" Header="Fecha" Binding="{Binding DateText}" Width="100" ElementStyle="{StaticResource TextCell}" />
+                <DataGridTextColumn x:Name="ColDay" Header="Día" Binding="{Binding DayName}" Width="110" ElementStyle="{StaticResource TextCell}" />
+                <DataGridTextColumn x:Name="ColValue" Header="Valor US$" Binding="{Binding ValueText}" Width="*" SortMemberPath="Value" ElementStyle="{StaticResource NumberCell}" />
+                <DataGridTextColumn x:Name="ColPieces" Header="Piezas" Binding="{Binding PiecesText}" Width="90" SortMemberPath="Pieces" ElementStyle="{StaticResource NumberCell}" />
+                <DataGridTextColumn x:Name="ColStyles" Header="Estilos" Binding="{Binding Styles}" Width="80" ElementStyle="{StaticResource NumberCell}" />
+                <DataGridTextColumn x:Name="ColPercent" Header="% meta" Binding="{Binding PercentText}" Width="80" ElementStyle="{StaticResource NumberCell}" />
+                <DataGridTemplateColumn x:Name="ColState" Header="Estado" Width="140" SortMemberPath="StateText">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding StateText}" Style="{StaticResource TextCell}" FontWeight="SemiBold"
+                                       Foreground="{Binding Tone, Converter={StaticResource ToneToText}}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+        <DockPanel Grid.Row="2" Margin="22,12,22,18">
+            <Button x:Name="CopyButton" Content="_Copiar para Excel" Click="OnCopy" />
+            <TextBlock x:Name="CopiedText" Foreground="{StaticResource TealTextBrush}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            <Button x:Name="CloseButton" Content="Cerrar" IsCancel="True" Width="100" HorizontalAlignment="Right" />
+        </DockPanel>
+    </Grid>
+</Window>
