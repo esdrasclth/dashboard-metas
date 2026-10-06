@@ -31,6 +31,10 @@
     <SolidColorBrush x:Key="HoverBrush" Color="#EEF2F8" />
     <SolidColorBrush x:Key="PressedBrush" Color="#E2E8F2" />
     <SolidColorBrush x:Key="LineBrush" Color="#D3DAE6" />
+    <!-- Announcements: soft background of an info strip; the backdrop dims the dashboard behind a card -->
+    <SolidColorBrush x:Key="InfoBackBrush" Color="#E8EEF8" />
+    <SolidColorBrush x:Key="BackdropBrush" Color="#0D2554" Opacity="0.62" />
+    <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
     <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="DisplayFont">Segoe UI Variable Display, Segoe UI</FontFamily>

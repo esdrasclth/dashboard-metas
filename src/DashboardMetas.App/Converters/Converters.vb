@@ -99,6 +99,47 @@ Namespace Converters
         End Function
     End Class
 
+    ''' <summary>Float line slot (Integer) to the same brush the float chart draws it with.</summary>
+    Public NotInheritable Class LineSlotToBrushConverter
+        Inherits OneWayConverter
+        Public Overrides Function Convert(value As Object, targetType As Type, parameter As Object, culture As CultureInfo) As Object
+            Return Global.DashboardMetas.App.Controls.ChartPalette.LineBrush(If(TypeOf value Is Integer, CInt(value), -1))
+        End Function
+    End Class
+
+    ''' <summary>
+    ''' Colour of an announcement by its severity. Parameter: "accent" (band, icon, stripe), "soft" (strip
+    ''' background), "onaccent" (text on the accent) or "text" (coloured text on white).
+    ''' Info = navy, Warning = orange, Critical = red (the same meanings as the rest of the screen).
+    ''' </summary>
+    Public NotInheritable Class SeverityToBrushConverter
+        Inherits OneWayConverter
+        Public Overrides Function Convert(value As Object, targetType As Type, parameter As Object, culture As CultureInfo) As Object
+            Dim severity = If(TypeOf value Is Core.Announcements.AnnouncementSeverity, DirectCast(value, Core.Announcements.AnnouncementSeverity), Core.Announcements.AnnouncementSeverity.Info)
+            Dim part = If(TryCast(parameter, String), "accent").ToLowerInvariant()
+            Select Case severity
+                Case Core.Announcements.AnnouncementSeverity.Critical
+                    Return Res(If(part = "soft", "DangerBackBrush", If(part = "onaccent", "CardBrush", "DangerBrush")))
+                Case Core.Announcements.AnnouncementSeverity.Warning
+                    Return Res(If(part = "soft", "WarnBackBrush", If(part = "onaccent", "InkBrush", If(part = "text", "OrangeTextBrush", "OrangeBrush"))))
+                Case Else
+                    Return Res(If(part = "soft", "InfoBackBrush", If(part = "onaccent", "CardBrush", "NavyBrush")))
+            End Select
+        End Function
+    End Class
+
+    ''' <summary>Icon of an announcement (Segoe Fluent Icons / MDL2): info, warning or error.</summary>
+    Public NotInheritable Class SeverityToGlyphConverter
+        Inherits OneWayConverter
+        Public Overrides Function Convert(value As Object, targetType As Type, parameter As Object, culture As CultureInfo) As Object
+            Select Case If(TypeOf value Is Core.Announcements.AnnouncementSeverity, DirectCast(value, Core.Announcements.AnnouncementSeverity), Core.Announcements.AnnouncementSeverity.Info)
+                Case Core.Announcements.AnnouncementSeverity.Critical : Return ChrW(&HEA39)
+                Case Core.Announcements.AnnouncementSeverity.Warning : Return ChrW(&HE7BA)
+                Case Else : Return ChrW(&HE946)
+            End Select
+        End Function
+    End Class
+
     Public NotInheritable Class DiagnosticGlyphConverter
         Inherits OneWayConverter
         Public Overrides Function Convert(value As Object, targetType As Type, parameter As Object, culture As CultureInfo) As Object

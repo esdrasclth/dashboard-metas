@@ -17,6 +17,9 @@
             <conv:RatioToStarConverter x:Key="RatioToStar" />
             <conv:LevelToBrushConverter x:Key="LevelToBrush" />
             <conv:DiagnosticGlyphConverter x:Key="DiagnosticGlyph" />
+            <conv:LineSlotToBrushConverter x:Key="LineSlotToBrush" />
+            <conv:SeverityToBrushConverter x:Key="SeverityToBrush" />
+            <conv:SeverityToGlyphConverter x:Key="SeverityToGlyph" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

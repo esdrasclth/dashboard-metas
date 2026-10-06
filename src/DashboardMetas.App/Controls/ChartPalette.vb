@@ -24,6 +24,26 @@ Namespace Controls
         Public Shared ReadOnly ProjectionMetFill As Brush = Frozen(Color.FromRgb(217, 241, 239))
         Public Shared ReadOnly ProjectionBelowFill As Brush = Frozen(Color.FromRgb(254, 241, 223))
 
+        ''' <summary>
+        ''' Categorical colours of the float's product lines, in fixed order (validated for colour blindness and
+        ''' contrast on white). Teal and orange are left out on purpose: on this screen they mean goal met / below.
+        ''' </summary>
+        Private Shared ReadOnly LineBrushes As Brush() = {
+            Frozen(Color.FromRgb(42, 120, 214)), Frozen(Color.FromRgb(213, 81, 129)), Frozen(Color.FromRgb(0, 131, 0)),
+            Frozen(Color.FromRgb(138, 92, 208)), Frozen(Color.FromRgb(160, 82, 45))}
+        ''' <summary>"Otras" (lines folded together and styles without a line).</summary>
+        Public Shared ReadOnly OtherLine As Brush = Frozen(Color.FromRgb(184, 192, 206))
+
+        ''' <summary>Colour of a float line slot; the last slot (and anything out of range) is "Otras".</summary>
+        Public Shared Function LineBrush(slot As Integer) As Brush
+            Return If(slot >= 0 AndAlso slot < LineBrushes.Length, LineBrushes(slot), OtherLine)
+        End Function
+
+        ''' <summary>Text on top of a line colour: white on the saturated ones, ink on the light grey of "Otras".</summary>
+        Public Shared Function OnLine(slot As Integer) As Brush
+            Return If(slot >= 0 AndAlso slot < LineBrushes.Length, Brushes.White, Ink)
+        End Function
+
         Public Shared ReadOnly GridPen As Pen = FrozenPen(Frozen(Color.FromRgb(231, 235, 242)), 1)
         Public Shared ReadOnly AxisPen As Pen = FrozenPen(Frozen(Color.FromRgb(150, 160, 180)), 1.5)
 

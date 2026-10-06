@@ -28,6 +28,32 @@ Namespace Abstractions
         ''' <summary>One row per area and day from <paramref name="fromDate"/> (inclusive) to today.</summary>
         Function GetDailyAsync(source As ProductionSource, fromDate As Date, cancellationToken As CancellationToken) As Task(Of IReadOnlyList(Of DailyProduction))
 
+        ''' <summary>
+        ''' The custom float right now: one row per status and base style of the open FIN orders.
+        ''' <paramref name="classifyFrom"/> = first day of F58C3120 used to find each style's product line.
+        ''' </summary>
+        Function GetFloatAsync(classifyFrom As Date, cancellationToken As CancellationToken) As Task(Of IReadOnlyList(Of FloatItem))
+
+    End Interface
+
+    ''' <summary>Answer of the announcement source: the file, or "unchanged since last time" (HTTP 304).</summary>
+    Public NotInheritable Class AnnouncementFetch
+        Public Shared ReadOnly Property Unchanged As New AnnouncementFetch With {.NotModified = True}
+        Public Property NotModified As Boolean
+        Public Property Content As String = String.Empty
+        ''' <summary>Where it came from, for logs and diagnostics.</summary>
+        Public Property Source As String = String.Empty
+    End Class
+
+    ''' <summary>Where the signed control file of the announcements comes from (HTTPS, a file, or the demo).</summary>
+    Public Interface IAnnouncementSource
+        ''' <summary>Throws when the file cannot be read (no network, 404, too big…); the message is in Spanish.</summary>
+        Function FetchAsync(cancellationToken As CancellationToken) As Task(Of AnnouncementFetch)
+        ''' <summary>Public keys this source's files may be signed with (production keys, or the demo key).</summary>
+        Function TrustedKeys() As IReadOnlyDictionary(Of String, Byte())
+        ''' <summary>Text for diagnostics ("https://…", "demo"…); empty = not configured.</summary>
+        ReadOnly Property Description As String
+        ReadOnly Property IsConfigured As Boolean
     End Interface
 
     ''' <summary>Saved JDE password (encrypted with DPAPI in the app).</summary>

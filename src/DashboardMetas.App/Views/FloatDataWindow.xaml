@@ -1,0 +1,33 @@
+<Window x:Class="FloatDataWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Datos del Float" Width="900" Height="640" MinWidth="600" MinHeight="360"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Topmost="True"
+        Style="{StaticResource AppWindow}" Icon="pack://application:,,,/Resources/app.ico">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Style="{StaticResource DialogHeader}">
+            <TextBlock x:Name="HeaderText" Style="{StaticResource DialogHeaderText}" TextTrimming="CharacterEllipsis" />
+        </Border>
+        <DataGrid x:Name="FloatGrid" Grid.Row="1" Margin="22,16,22,0" IsReadOnly="True" AutomationProperties.Name="Detalle del float por estilo">
+            <DataGrid.Columns>
+                <DataGridTextColumn x:Name="ColStatus" Header="Estatus" Binding="{Binding Status}" Width="80" ElementStyle="{StaticResource TextCell}" />
+                <DataGridTextColumn x:Name="ColStyle" Header="Estilo" Binding="{Binding Style}" Width="120" ElementStyle="{StaticResource TextCell}" />
+                <DataGridTextColumn x:Name="ColLine" Header="Línea" Binding="{Binding ProductLine}" Width="*" ElementStyle="{StaticResource TextCell}" />
+                <DataGridTextColumn x:Name="ColPieces" Header="Piezas" Binding="{Binding PiecesText}" Width="90" SortMemberPath="Pieces" ElementStyle="{StaticResource NumberCell}" />
+                <DataGridTextColumn x:Name="ColUnit" Header="Precio W01" Binding="{Binding UnitText}" Width="100" SortMemberPath="Value" ElementStyle="{StaticResource NumberCell}" />
+                <DataGridTextColumn x:Name="ColValue" Header="Valor US$" Binding="{Binding ValueText}" Width="130" SortMemberPath="Value" ElementStyle="{StaticResource NumberCell}" />
+                <DataGridTextColumn x:Name="ColOrders" Header="Órdenes" Binding="{Binding Orders}" Width="80" ElementStyle="{StaticResource NumberCell}" />
+            </DataGrid.Columns>
+        </DataGrid>
+        <DockPanel Grid.Row="2" Margin="22,12,22,18">
+            <Button x:Name="CopyButton" Content="_Copiar para Excel" Click="OnCopy" />
+            <TextBlock x:Name="CopiedText" Foreground="{StaticResource TealTextBrush}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            <Button x:Name="CloseButton" Content="Cerrar" IsCancel="True" Width="100" HorizontalAlignment="Right" />
+        </DockPanel>
+    </Grid>
+</Window>

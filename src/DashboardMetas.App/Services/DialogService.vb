@@ -17,6 +17,7 @@ Namespace Services
         ''' <summary>Returns the chosen area code, or Nothing.</summary>
         Function PickArea(areas As IReadOnlyList(Of AreaDefinition), current As String, english As Boolean) As String
         Sub ShowData(title As String, rows As IReadOnlyList(Of DayRow), english As Boolean)
+        Sub ShowFloatData(title As String, rows As IReadOnlyList(Of FloatRow), english As Boolean)
     End Interface
 
     Public NotInheritable Class DialogService
@@ -69,6 +70,11 @@ Namespace Services
 
         Public Sub ShowData(title As String, rows As IReadOnlyList(Of DayRow), english As Boolean) Implements IDialogService.ShowData
             Dim window As New DataWindow(title, rows, english) With {.Owner = Owner()}
+            window.ShowDialog()
+        End Sub
+
+        Public Sub ShowFloatData(title As String, rows As IReadOnlyList(Of FloatRow), english As Boolean) Implements IDialogService.ShowFloatData
+            Dim window As New FloatDataWindow(title, rows, english) With {.Owner = Owner()}
             window.ShowDialog()
         End Sub
 

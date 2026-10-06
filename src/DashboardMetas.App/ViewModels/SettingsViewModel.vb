@@ -4,6 +4,7 @@ Imports CommunityToolkit.Mvvm.ComponentModel
 Imports CommunityToolkit.Mvvm.Input
 Imports DashboardMetas.App.Services
 Imports DashboardMetas.Core.Abstractions
+Imports DashboardMetas.Core.Announcements
 Imports DashboardMetas.Core.Configuration
 Imports DashboardMetas.Core.Dashboard
 Imports DashboardMetas.Core.Models
@@ -178,10 +179,25 @@ Namespace ViewModels
         Private ReadOnly _jde As IOptionsMonitor(Of JdeSettings)
         Private ReadOnly _dashboard As IOptionsMonitor(Of DashboardSettings)
         Private ReadOnly _demo As IOptionsMonitor(Of DemoSettings)
+        Private ReadOnly _announcementSettings As IOptionsMonitor(Of AnnouncementSettings)
+        Private ReadOnly _announcements As AnnouncementService
+        Private ReadOnly _statusSettings As IOptionsMonitor(Of StatusSettings)
+        Private ReadOnly _reporter As ScreenReporter
+        Private ReadOnly _updateSettings As IOptionsMonitor(Of UpdateSettings)
+        Private ReadOnly _updates As UpdateService
         Private _prefs As DashboardPreferences
 
         Public Sub New(store As PreferencesStore, writer As UserSettingsWriter, credentials As ICredentialStore, dialogs As IDialogService, mode As AppMode,
-                       jde As IOptionsMonitor(Of JdeSettings), dashboard As IOptionsMonitor(Of DashboardSettings), demo As IOptionsMonitor(Of DemoSettings))
+                       jde As IOptionsMonitor(Of JdeSettings), dashboard As IOptionsMonitor(Of DashboardSettings), demo As IOptionsMonitor(Of DemoSettings),
+                       announcementSettings As IOptionsMonitor(Of AnnouncementSettings), announcements As AnnouncementService,
+                       statusSettings As IOptionsMonitor(Of StatusSettings), reporter As ScreenReporter,
+                       updateSettings As IOptionsMonitor(Of UpdateSettings), updates As UpdateService)
+            _updateSettings = updateSettings
+            _updates = updates
+            _statusSettings = statusSettings
+            _reporter = reporter
+            _announcementSettings = announcementSettings
+            _announcements = announcements
             _store = store
             _writer = writer
             _credentials = credentials
@@ -196,6 +212,10 @@ Namespace ViewModels
             ForgetPasswordCommand = New RelayCommand(AddressOf ForgetPassword)
             RestoreCompanyCommand = New RelayCommand(AddressOf RestoreCompany)
             CopyShiftToAllCommand = New RelayCommand(AddressOf CopyShiftToAll)
+            CheckAnnouncementsCommand = New AsyncRelayCommand(AddressOf CheckAnnouncementsAsync)
+            PreviewAnnouncementCommand = New RelayCommand(AddressOf PreviewAnnouncement)
+            RestoreDismissedCommand = New RelayCommand(AddressOf RestoreDismissed)
+            ReportNowCommand = New AsyncRelayCommand(AddressOf ReportNowAsync)
             Load()
         End Sub
 
@@ -206,6 +226,294 @@ Namespace ViewModels
         Public ReadOnly Property ForgetPasswordCommand As IRelayCommand
         Public ReadOnly Property RestoreCompanyCommand As IRelayCommand
         Public ReadOnly Property CopyShiftToAllCommand As IRelayCommand
+        Public ReadOnly Property CheckAnnouncementsCommand As IAsyncRelayCommand
+        Public ReadOnly Property PreviewAnnouncementCommand As IRelayCommand
+        Public ReadOnly Property RestoreDismissedCommand As IRelayCommand
+        Public ReadOnly Property ReportNowCommand As IAsyncRelayCommand
+
+#Region "Automatic updates"
+
+        Private _autoUpdate As Boolean
+        Public Property AutoUpdate As Boolean
+            Get
+                Return _autoUpdate
+            End Get
+            Set(value As Boolean)
+                SetProperty(_autoUpdate, value)
+            End Set
+        End Property
+
+        Private _updateStatusText As String = String.Empty
+        Public Property UpdateStatusText As String
+            Get
+                Return _updateStatusText
+            End Get
+            Private Set(value As String)
+                SetProperty(_updateStatusText, value)
+            End Set
+        End Property
+
+        Private _updateStatusLevel As DiagnosticLevel = DiagnosticLevel.Info
+        Public Property UpdateStatusLevel As DiagnosticLevel
+            Get
+                Return _updateStatusLevel
+            End Get
+            Private Set(value As DiagnosticLevel)
+                SetProperty(_updateStatusLevel, value)
+            End Set
+        End Property
+
+        Private Sub LoadUpdateStatus()
+            Dim s = _updates.Status()
+            Dim current = UpdateService.CurrentVersion.ToString(3)
+            Select Case s.State
+                Case "descargando"
+                    UpdateStatusText = $"Versión {current} · descargando la {s.Version}…"
+                    UpdateStatusLevel = DiagnosticLevel.Info
+                Case "lista"
+                    UpdateStatusText = $"Versión {current} · la {s.Version} está descargada; se instala {s.Detail}."
+                    UpdateStatusLevel = DiagnosticLevel.Info
+                Case "instalando"
+                    UpdateStatusText = $"Instalando la versión {s.Version}…"
+                    UpdateStatusLevel = DiagnosticLevel.Info
+                Case "error", "revertida"
+                    UpdateStatusText = $"Versión {current} · {If(String.IsNullOrEmpty(s.Version), "", "la " & s.Version & ": ")}{s.Detail}"
+                    UpdateStatusLevel = DiagnosticLevel.Error
+                Case "no-aplica"
+                    UpdateStatusText = $"Versión {current} · {s.Detail}"
+                    UpdateStatusLevel = DiagnosticLevel.Ok
+                Case Else
+                    UpdateStatusText = $"Versión {current} · al día."
+                    UpdateStatusLevel = DiagnosticLevel.Ok
+            End Select
+        End Sub
+
+#End Region
+
+#Region "Screen status (panel)"
+
+        Private _reportEnabled As Boolean
+        Public Property ReportEnabled As Boolean
+            Get
+                Return _reportEnabled
+            End Get
+            Set(value As Boolean)
+                SetProperty(_reportEnabled, value)
+            End Set
+        End Property
+
+        Private _reportUrl As String = String.Empty
+        Public Property ReportUrl As String
+            Get
+                Return _reportUrl
+            End Get
+            Set(value As String)
+                SetProperty(_reportUrl, value)
+            End Set
+        End Property
+
+        Private _reportStatusText As String = String.Empty
+        Public Property ReportStatusText As String
+            Get
+                Return _reportStatusText
+            End Get
+            Private Set(value As String)
+                SetProperty(_reportStatusText, value)
+            End Set
+        End Property
+
+        Private _reportStatusLevel As DiagnosticLevel = DiagnosticLevel.Info
+        Public Property ReportStatusLevel As DiagnosticLevel
+            Get
+                Return _reportStatusLevel
+            End Get
+            Private Set(value As DiagnosticLevel)
+                SetProperty(_reportStatusLevel, value)
+            End Set
+        End Property
+
+        Private Sub LoadReportStatus(Optional status As ReporterStatus = Nothing)
+            status = If(status, _reporter.Status())
+            If Not status.IsConfigured Then
+                ReportStatusText = $"Esta pantalla no reporta al panel. Id del equipo: {status.DeviceId}"
+                ReportStatusLevel = DiagnosticLevel.Info
+            ElseIf Not String.IsNullOrEmpty(status.LastError) Then
+                ReportStatusText = $"Último intento {Stamp(status.LastAttempt)} · ERROR: {status.LastError}" &
+                                   If(status.LastSuccess.HasValue, $" (último correcto {Stamp(status.LastSuccess)})", "") & $" · equipo {status.DeviceId}"
+                ReportStatusLevel = DiagnosticLevel.Error
+            ElseIf status.LastSuccess.HasValue Then
+                ReportStatusText = $"Último reporte {Stamp(status.LastSuccess)} · correcto · equipo {status.DeviceId}"
+                ReportStatusLevel = DiagnosticLevel.Ok
+            Else
+                ReportStatusText = $"Todavía sin reportar (el primero sale a los pocos segundos de abrir) · equipo {status.DeviceId}"
+                ReportStatusLevel = DiagnosticLevel.Info
+            End If
+        End Sub
+
+        ''' <summary>Uses the saved address (save first after changing it).</summary>
+        Private Async Function ReportNowAsync() As Task
+            ReportStatusText = "Reportando…"
+            ReportStatusLevel = DiagnosticLevel.Info
+            LoadReportStatus(Await _reporter.ReportNowAsync(Threading.CancellationToken.None))
+        End Function
+
+#End Region
+
+#Region "Announcements"
+
+        Private _announcementsEnabled As Boolean
+        Public Property AnnouncementsEnabled As Boolean
+            Get
+                Return _announcementsEnabled
+            End Get
+            Set(value As Boolean)
+                SetProperty(_announcementsEnabled, value)
+            End Set
+        End Property
+
+        Private _announcementUrl As String = String.Empty
+        Public Property AnnouncementUrl As String
+            Get
+                Return _announcementUrl
+            End Get
+            Set(value As String)
+                SetProperty(_announcementUrl, value)
+            End Set
+        End Property
+
+        Private _announcementPollSeconds As String = "60"
+        Public Property AnnouncementPollSeconds As String
+            Get
+                Return _announcementPollSeconds
+            End Get
+            Set(value As String)
+                SetProperty(_announcementPollSeconds, value)
+            End Set
+        End Property
+
+        Private _simulateAnnouncements As Boolean
+        Public Property SimulateAnnouncements As Boolean
+            Get
+                Return _simulateAnnouncements
+            End Get
+            Set(value As Boolean)
+                SetProperty(_simulateAnnouncements, value)
+            End Set
+        End Property
+
+        Private _announcementCheckText As String = String.Empty
+        ''' <summary>"Última consulta 10:32 · correcta" or the error.</summary>
+        Public Property AnnouncementCheckText As String
+            Get
+                Return _announcementCheckText
+            End Get
+            Private Set(value As String)
+                SetProperty(_announcementCheckText, value)
+            End Set
+        End Property
+
+        Private _announcementCheckLevel As DiagnosticLevel = DiagnosticLevel.Info
+        Public Property AnnouncementCheckLevel As DiagnosticLevel
+            Get
+                Return _announcementCheckLevel
+            End Get
+            Private Set(value As DiagnosticLevel)
+                SetProperty(_announcementCheckLevel, value)
+            End Set
+        End Property
+
+        Private _announcementFileText As String = String.Empty
+        Public Property AnnouncementFileText As String
+            Get
+                Return _announcementFileText
+            End Get
+            Private Set(value As String)
+                SetProperty(_announcementFileText, value)
+            End Set
+        End Property
+
+        Private _restoreDismissedText As String = "Volver a mostrar los cerrados"
+        Public Property RestoreDismissedText As String
+            Get
+                Return _restoreDismissedText
+            End Get
+            Private Set(value As String)
+                SetProperty(_restoreDismissedText, value)
+            End Set
+        End Property
+
+        ''' <summary>Name and plant of this PC, to target announcements to it.</summary>
+        Public ReadOnly Property ThisPcText As String
+            Get
+                Dim audience = _announcements.Audience()
+                Return $"Esta PC: {audience.MachineName} · planta {audience.Branch}.  Para dirigirle un anuncio: «equipo:{audience.MachineName}» o «planta:{audience.Branch}»."
+            End Get
+        End Property
+
+        Private Sub LoadAnnouncementStatus()
+            Dim status = _announcements.Status()
+            If Not status.IsConfigured Then
+                AnnouncementCheckText = If(_mode.IsDemo, "Modo demo: activa «Simular anuncios» en la pestaña Modo demo para ver ejemplos.",
+                                                         "Sin dirección de anuncios: escribe la dirección y guarda.")
+                AnnouncementCheckLevel = DiagnosticLevel.Info
+            ElseIf Not String.IsNullOrEmpty(status.LastError) Then
+                AnnouncementCheckText = $"Última consulta {Stamp(status.LastCheck)} · ERROR: {status.LastError}" &
+                                        If(status.LastSuccess.HasValue, $" (última correcta {Stamp(status.LastSuccess)})", "")
+                AnnouncementCheckLevel = DiagnosticLevel.Error
+            ElseIf status.LastCheck.HasValue Then
+                AnnouncementCheckText = $"Última consulta {Stamp(status.LastCheck)} · correcta · {status.Source}"
+                AnnouncementCheckLevel = DiagnosticLevel.Ok
+            Else
+                AnnouncementCheckText = "Todavía sin consultar · " & status.Source
+                AnnouncementCheckLevel = DiagnosticLevel.Info
+            End If
+            Dim activeHere = _announcements.Active().Count
+            AnnouncementFileText = If(status.Version = 0, "Sin archivo de anuncios recibido.",
+                $"Versión {status.Version} publicada {Stamp(status.IssuedAt)} · {status.InFile} anuncio(s) en el archivo · {activeHere} activo(s) en esta PC · clave {status.KeyId}" &
+                If(status.Warnings.Count > 0, $" · {status.Warnings.Count} descartado(s), ver el log", ""))
+            RestoreDismissedText = If(status.Dismissed > 0, $"Volver a mostrar los cerrados ({status.Dismissed})", "Volver a mostrar los cerrados")
+        End Sub
+
+        Private Shared Function Stamp(value As DateTimeOffset?) As String
+            If Not value.HasValue Then Return "—"
+            Dim local = value.Value.LocalDateTime
+            Return If(local.Date = Date.Today, local.ToString("HH:mm:ss", CultureInfo.InvariantCulture), local.ToString("dd/MM HH:mm", CultureInfo.InvariantCulture))
+        End Function
+
+        ''' <summary>Uses the saved address (save first after changing it).</summary>
+        Private Async Function CheckAnnouncementsAsync() As Task
+            AnnouncementCheckText = "Consultando…"
+            AnnouncementCheckLevel = DiagnosticLevel.Info
+            Try
+                Await _announcements.CheckNowAsync(Threading.CancellationToken.None)
+            Catch ex As Exception
+                AnnouncementCheckText = ex.Message
+                AnnouncementCheckLevel = DiagnosticLevel.Error
+                Return
+            End Try
+            LoadAnnouncementStatus()
+        End Function
+
+        ''' <summary>A sample card on the main screen (visible when this window closes); nothing is saved.</summary>
+        Private Sub PreviewAnnouncement()
+            _announcements.Preview(New Announcement With {
+                .Id = "vista-previa",
+                .Title = "Así se verá un anuncio",
+                .Message = "Este es un ejemplo local: no viene de la dirección de anuncios y al cerrarlo no se guarda nada." & Environment.NewLine & Environment.NewLine &
+                           "En la TV, si nadie lo cierra, se queda hasta su hora de fin.",
+                .TitleEn = "This is how an announcement looks",
+                .MessageEn = "This is a local example: it does not come from the announcement address and closing it saves nothing.",
+                .Severity = AnnouncementSeverity.Info, .Display = AnnouncementDisplay.Modal,
+                .EndsAt = New DateTimeOffset(Date.Now.AddHours(1))})
+            AnnouncementFileText = "Vista previa enviada: se ve en la pantalla principal (cierra esta ventana o muévela)."
+        End Sub
+
+        Private Sub RestoreDismissed()
+            _announcements.RestoreDismissed()
+            LoadAnnouncementStatus()
+        End Sub
+
+#End Region
 
         ''' <summary>Same shift hours as the first row in every area.</summary>
         Private Sub CopyShiftToAll()
@@ -220,7 +528,7 @@ Namespace ViewModels
         End Sub
 
         Public ReadOnly Property Areas As New ObservableCollection(Of AreaRowViewModel)()
-        Public ReadOnly Property FailingSourceOptions As IReadOnlyList(Of String) = {"", "Y1", "Estaciones", "Embarques"}
+        Public ReadOnly Property FailingSourceOptions As IReadOnlyList(Of String) = {"", "Y1", "Estaciones", "Embarques", "Float"}
 
         Private Sub Load()
             _prefs = _store.Load()
@@ -228,11 +536,16 @@ Namespace ViewModels
             HistoryDays = _prefs.HistoryDays.ToString(CultureInfo.InvariantCulture)
             AutoRotate = _prefs.AutoRotate
             RotateSeconds = _prefs.RotateSeconds.ToString(CultureInfo.InvariantCulture)
+            FloatInRotation = _prefs.FloatInRotation
             Areas.Clear()
             For Each area In _prefs.Areas
                 Areas.Add(New AreaRowViewModel(area))
             Next
             LoadConnection(_jde.CurrentValue, _dashboard.CurrentValue, _demo.CurrentValue)
+            LoadAnnouncements(_announcementSettings.CurrentValue)
+            LoadStatus(_statusSettings.CurrentValue)
+            AutoUpdate = _updateSettings.CurrentValue.Enabled
+            LoadUpdateStatus()
             ErrorText = String.Empty
             OnPropertyChanged(NameOf(HasSavedPassword))
         End Sub
@@ -249,6 +562,7 @@ Namespace ViewModels
             PriceType = j.PriceType
             AssemblyOperation = j.AssemblyOperation.ToString(CultureInfo.InvariantCulture)
             ShipmentTransaction = j.ShipmentTransaction
+            FloatStatuses = String.Join(",", j.FloatStatusList())
             StationsDivisor = j.StationsQuantityDivisor.ToString(CultureInfo.InvariantCulture)
             PriceDivisor = j.PriceDivisor.ToString(CultureInfo.InvariantCulture)
             RefreshMinutes = d.RefreshMinutes.ToString(CultureInfo.InvariantCulture)
@@ -257,6 +571,20 @@ Namespace ViewModels
             DemoEnabled = demo.Enabled OrElse _mode.ForcedByArgument
             FailingSource = If(demo.FailingSource, String.Empty)
             SimulatedTime = If(demo.SimulatedTime, String.Empty)
+            SimulateAnnouncements = demo.SimulateAnnouncements
+        End Sub
+
+        Private Sub LoadStatus(s As StatusSettings)
+            ReportEnabled = s.Enabled
+            ReportUrl = If(s.Url, String.Empty)
+            LoadReportStatus()
+        End Sub
+
+        Private Sub LoadAnnouncements(a As AnnouncementSettings)
+            AnnouncementsEnabled = a.Enabled
+            AnnouncementUrl = If(a.FeedUrl, String.Empty)
+            AnnouncementPollSeconds = a.PollSeconds.ToString(CultureInfo.InvariantCulture)
+            LoadAnnouncementStatus()
         End Sub
 
 #Region "Fields"
@@ -449,6 +777,27 @@ Namespace ViewModels
             End Set
         End Property
 
+        Private _floatStatuses As String
+        ''' <summary>F4801.WASRST of the custom float, separated by commas.</summary>
+        Public Property FloatStatuses As String
+            Get
+                Return _floatStatuses
+            End Get
+            Set(value As String)
+                SetProperty(_floatStatuses, value)
+            End Set
+        End Property
+
+        Private _floatInRotation As Boolean
+        Public Property FloatInRotation As Boolean
+            Get
+                Return _floatInRotation
+            End Get
+            Set(value As Boolean)
+                SetProperty(_floatInRotation, value)
+            End Set
+        End Property
+
         Private _shipmentTransaction As String
         Public Property ShipmentTransaction As String
             Get
@@ -578,9 +927,21 @@ Namespace ViewModels
                 .PricesLibrary = If(PricesLibrary, String.Empty).Trim().ToUpperInvariant(), .DcLinkLibrary = If(DcLinkLibrary, String.Empty).Trim().ToUpperInvariant(),
                 .PriceType = If(PriceType, String.Empty).Trim().ToUpperInvariant(), .AssemblyOperation = operation,
                 .ShipmentTransaction = If(ShipmentTransaction, String.Empty).Trim().ToUpperInvariant(),
+                .FloatStatuses = If(FloatStatuses, String.Empty).Replace(" ", "").ToUpperInvariant(),
                 .StationsQuantityDivisor = If(stationsDiv > 0D, stationsDiv, 1D), .PriceDivisor = If(priceDiv > 0D, priceDiv, 1D),
                 .CommandTimeoutSeconds = current.CommandTimeoutSeconds, .ConnectionTimeoutSeconds = current.ConnectionTimeoutSeconds}
             errors.AddRange(jde.Validate())
+            Dim pollSeconds As Integer
+            If Not TryParseInt(AnnouncementPollSeconds, AnnouncementSettings.MinPollSeconds, AnnouncementSettings.MaxPollSeconds, pollSeconds) Then
+                errors.Add($"La consulta de anuncios debe ser de {AnnouncementSettings.MinPollSeconds} a {AnnouncementSettings.MaxPollSeconds} segundos.")
+            End If
+            Dim newAnnouncements As New AnnouncementSettings With {
+                .Enabled = AnnouncementsEnabled, .FeedUrl = If(AnnouncementUrl, String.Empty).Trim(), .PollSeconds = Math.Max(pollSeconds, AnnouncementSettings.MinPollSeconds)}
+            errors.AddRange(newAnnouncements.Validate().Where(Function(e) Not e.StartsWith("La consulta de anuncios", StringComparison.Ordinal)))
+            Dim currentStatus = _statusSettings.CurrentValue
+            Dim newStatus As New StatusSettings With {
+                .Enabled = ReportEnabled, .Url = If(ReportUrl, String.Empty).Trim(), .IntervalSeconds = currentStatus.IntervalSeconds}
+            errors.AddRange(newStatus.Validate())
 
             If errors.Count > 0 Then
                 ErrorText = String.Join(Environment.NewLine, errors.Distinct())
@@ -594,7 +955,8 @@ Namespace ViewModels
                 .MinMinutesForProjection = dashboard.MinMinutesForProjection}
             Dim demo = _demo.CurrentValue
             Dim newDemo As New DemoSettings With {
-                .Enabled = If(_mode.ForcedByArgument, demo.Enabled, DemoEnabled), .QueryDelayMilliseconds = demo.QueryDelayMilliseconds, .FailingSource = If(FailingSource, String.Empty), .SimulatedTime = If(SimulatedTime, String.Empty).Trim()}
+                .Enabled = If(_mode.ForcedByArgument, demo.Enabled, DemoEnabled), .QueryDelayMilliseconds = demo.QueryDelayMilliseconds, .FailingSource = If(FailingSource, String.Empty), .SimulatedTime = If(SimulatedTime, String.Empty).Trim(),
+                .SimulateAnnouncements = SimulateAnnouncements}
 
             If jde.User <> current.User OrElse jde.Dsn <> current.Dsn Then _credentials.Delete()
 
@@ -602,10 +964,11 @@ Namespace ViewModels
             _prefs.HistoryDays = days
             _prefs.AutoRotate = AutoRotate
             _prefs.RotateSeconds = seconds
+            _prefs.FloatInRotation = FloatInRotation
             _prefs.Areas = built
             _prefs.Normalize(dashboard)
             _store.Save(_prefs)
-            _writer.Save(jde, newDashboard, newDemo)
+            _writer.Save(jde, newDashboard, newDemo, newAnnouncements, newStatus, New UpdateSettings With {.Enabled = AutoUpdate})
             ErrorText = String.Empty
             RaiseEvent Saved(Me, EventArgs.Empty)
         End Sub
@@ -625,6 +988,8 @@ Namespace ViewModels
             If Not _dialogs.Confirm("¿Volver a los valores de conexión de la empresa (appsettings.empresa.json)? Las metas y nombres de las áreas no cambian.") Then Return
             _writer.Reset()
             LoadConnection(_jde.CurrentValue, _dashboard.CurrentValue, _demo.CurrentValue)
+            LoadAnnouncements(_announcementSettings.CurrentValue)
+            LoadStatus(_statusSettings.CurrentValue)
         End Sub
 
     End Class

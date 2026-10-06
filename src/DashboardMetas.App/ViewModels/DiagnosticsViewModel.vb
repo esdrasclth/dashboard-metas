@@ -74,11 +74,13 @@ Namespace ViewModels
                 Dim parts As New List(Of String) From {$"Conexión correcta como {settings.User} en {watch.Elapsed.TotalSeconds:0.0} s ({session.DriverInfo})."}
                 Dim anyError = False
                 Try
-                    For Each source In AreaCatalog.AllSources
+                    For Each source In AreaCatalog.AllQueries
                         Dim queryWatch = Diagnostics.Stopwatch.StartNew()
                         Try
-                            Dim rows = Await session.GetDailyAsync(source, _clock.Now.Date.AddDays(-2), CancellationToken.None)
-                            parts.Add($"{AreaCatalog.SourceName(source)}: {rows.Count} filas en {queryWatch.Elapsed.TotalSeconds:0.0} s.")
+                            Dim count = If(source = ProductionSource.Float,
+                                           (Await session.GetFloatAsync(_clock.Now.Date.AddDays(-ProductionRefresher.FloatClassifyDays), CancellationToken.None)).Count,
+                                           (Await session.GetDailyAsync(source, _clock.Now.Date.AddDays(-2), CancellationToken.None)).Count)
+                            parts.Add($"{AreaCatalog.SourceName(source)}: {count} filas en {queryWatch.Elapsed.TotalSeconds:0.0} s.")
                         Catch ex As Exception
                             anyError = True
                             parts.Add($"{AreaCatalog.SourceName(source)}: ERROR {ex.Message}")

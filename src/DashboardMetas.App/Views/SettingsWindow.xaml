@@ -44,6 +44,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Text="Idioma de la pantalla" Style="{StaticResource FieldLabel}" />
@@ -75,9 +76,10 @@
 
                             <CheckBox Grid.Row="4" Grid.Column="1" Content="No mostrar los domingos en la gráfica" IsChecked="{Binding ExcludeSundays}" Margin="0,8" />
                             <CheckBox Grid.Row="5" Grid.Column="1" Content="Abrir en pantalla completa (F11 cambia, Esc sale)" IsChecked="{Binding StartFullScreen}" Margin="0,4" />
+                            <CheckBox Grid.Row="6" Grid.Column="1" Content="Incluir la pantalla del Float en el cambio automático (después de la última área)" IsChecked="{Binding FloatInRotation}" Margin="0,4" />
                         </Grid>
                         <TextBlock Style="{StaticResource Hint}" Margin="0,16,0,0"
-                                   Text="Atajos: F5 actualiza, ← → cambian de área, F11 pantalla completa. El puntero se oculta solo en pantalla completa." />
+                                   Text="Atajos: F5 actualiza, ← → cambian de área, V vista general, F Float, M cambia la gráfica, F11 pantalla completa. El puntero se oculta solo en pantalla completa." />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -151,7 +153,7 @@
                         <TextBlock Grid.Row="5" Grid.ColumnSpan="2" Text="BIBLIOTECAS" Style="{StaticResource SectionTitle}" />
                         <TextBlock Grid.Row="6" Text="Y1: F31122, F4801, F4211" Style="{StaticResource FieldLabel}" />
                         <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding AssemblyLibrary}" Margin="0,3" CharacterCasing="Upper" />
-                        <TextBlock Grid.Row="7" Text="Estaciones: F58C3120" Style="{StaticResource FieldLabel}" />
+                        <TextBlock Grid.Row="7" Text="Estaciones y Float: F58C3120, F4801" Style="{StaticResource FieldLabel}" />
                         <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding StationsLibrary}" Margin="0,3" CharacterCasing="Upper" />
                         <TextBlock Grid.Row="8" Text="Precios: F41D200" Style="{StaticResource FieldLabel}" />
                         <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding PricesLibrary}" Margin="0,3" CharacterCasing="Upper" />
@@ -165,6 +167,9 @@
                             <TextBox Text="{Binding AssemblyOperation}" Width="90" Margin="10,0,0,0" />
                             <TextBlock Text="Transacción embarque" VerticalAlignment="Center" Margin="16,0,8,0" />
                             <TextBox Text="{Binding ShipmentTransaction}" Width="60" CharacterCasing="Upper" />
+                            <TextBlock Text="Estatus del Float" VerticalAlignment="Center" Margin="16,0,8,0" />
+                            <TextBox Text="{Binding FloatStatuses}" Width="140" CharacterCasing="Upper"
+                                     ToolTip="F4801.WASRST de las órdenes FIN que forman el Float, separados por comas (ej. Y1,Y2,Y3,Y5)" />
                         </StackPanel>
                         <TextBlock Grid.Row="12" Text="Divisores (cantidad / precio)" Style="{StaticResource FieldLabel}" />
                         <StackPanel Grid.Row="12" Grid.Column="1" Orientation="Horizontal" Margin="0,3">
@@ -178,6 +183,72 @@
                             <Button Content="_Restaurar valores de la empresa" Command="{Binding RestoreCompanyCommand}" Margin="8,0,0,0" />
                         </StackPanel>
                     </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ================= Anuncios ================= -->
+            <TabItem Header="A_nuncios">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,4,6,0">
+                        <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,10"
+                                   Text="La app consulta un archivo firmado (control.json) y muestra sus anuncios sobre el tablero: como tarjeta (modal) o como franja bajo el título. Solo acepta archivos firmados con la clave del publicador, así que nadie puede inventar un anuncio aunque cambie esta dirección. Para publicar: herramienta «anuncios» (ver README)." />
+                        <CheckBox Content="Mostrar anuncios remotos" IsChecked="{Binding AnnouncementsEnabled}" FontWeight="SemiBold" Margin="0,4" />
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Dirección del archivo" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Column="1" Text="{Binding AnnouncementUrl}" Margin="0,3"
+                                     ToolTip="https://…/control.json o una carpeta de red: \servidor\carpeta\control.json" />
+                            <TextBlock Grid.Row="1" Text="Consultar cada" Style="{StaticResource FieldLabel}" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,3">
+                                <TextBox Text="{Binding AnnouncementPollSeconds, UpdateSourceTrigger=PropertyChanged}" Width="70" HorizontalContentAlignment="Center" />
+                                <TextBlock Text="segundos (30 a 3600)" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="ESTADO" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="{Binding AnnouncementCheckText}" TextWrapping="Wrap" Margin="0,2"
+                                   Foreground="{Binding AnnouncementCheckLevel, Converter={StaticResource LevelToBrush}}" />
+                        <TextBlock Text="{Binding AnnouncementFileText}" TextWrapping="Wrap" Margin="0,2" />
+                        <TextBlock Text="{Binding ThisPcText}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,6,0,0" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,6">
+                            <Button Content="Consultar _ahora" Command="{Binding CheckAnnouncementsCommand}" />
+                            <Button Content="_Vista previa" Command="{Binding PreviewAnnouncementCommand}" Margin="8,0,0,0" />
+                            <Button Content="{Binding RestoreDismissedText}" Command="{Binding RestoreDismissedCommand}" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap"
+                                   Text="«Consultar ahora» usa la dirección guardada: si la cambiaste, guarda primero. Los anuncios cerrados con «Entendido» no vuelven a salir en esta PC; el botón de la derecha los recupera." />
+
+                        <TextBlock Text="ESTADO DE ESTA PANTALLA EN EL PANEL" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="Cada 5 minutos (y al momento si JDE se cae o vuelve, o si se ve o se cierra un anuncio) esta pantalla le dice al panel que está encendida: versión, vista, estado de JDE y anuncios vistos. Nunca envía cifras de JDE ni contraseñas. Va firmado con la clave propia de esta PC." />
+                        <CheckBox Content="Reportar el estado de esta pantalla al panel" IsChecked="{Binding ReportEnabled}" FontWeight="SemiBold" Margin="0,4" />
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Dirección del panel" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Column="1" Text="{Binding ReportUrl}" Margin="0,3" ToolTip="https://…/api/heartbeat" />
+                        </Grid>
+                        <TextBlock Text="{Binding ReportStatusText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Foreground="{Binding ReportStatusLevel, Converter={StaticResource LevelToBrush}}" />
+                        <Button Content="_Reportar ahora" Command="{Binding ReportNowCommand}" HorizontalAlignment="Left" Margin="0,10,0,6" />
+
+                        <TextBlock Text="ACTUALIZACIONES AUTOMÁTICAS" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="Las versiones nuevas se publican en el panel, firmadas con la clave del publicador. Esta pantalla la descarga, comprueba la firma y la huella del archivo, y la instala fuera de turno (o al momento, si así se publicó). Si la versión nueva no abre bien, vuelve sola a la anterior. Necesita «Reportar el estado de esta pantalla al panel»." />
+                        <CheckBox Content="Instalar automáticamente las versiones publicadas" IsChecked="{Binding AutoUpdate}" FontWeight="SemiBold" Margin="0,4" />
+                        <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" Margin="0,6,0,6"
+                                   Foreground="{Binding UpdateStatusLevel, Converter={StaticResource LevelToBrush}}" />
+                    </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
@@ -201,6 +272,9 @@
                         <TextBlock Text="(HH:mm o aaaa-mm-dd HH:mm; vacío = hora real)" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,0" />
                     </StackPanel>
                     <TextBlock Style="{StaticResource Hint}" Margin="22,4,0,0" Text="Para ver el ritmo y la proyección a cualquier hora del turno (ej. 11:20). Solo afecta al modo demo." />
+                    <CheckBox Content="Simular anuncios" IsChecked="{Binding SimulateAnnouncements}" Margin="22,16,0,0" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="44,4,0,0" TextWrapping="Wrap"
+                               Text="Ejemplos firmados en esta PC (una tarjeta, una franja y uno para otra planta que no debe verse), con la misma verificación que los reales." />
                 </StackPanel>
             </TabItem>
         </TabControl>

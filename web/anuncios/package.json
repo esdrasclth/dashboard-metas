@@ -1,0 +1,25 @@
+{
+  "name": "dashboard-metas-anuncios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Panel para redactar, firmar y publicar los anuncios remotos de Dashboard Metas",
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "hash-password": "node scripts/hash-password.mjs",
+    "interop": "node scripts/interop-check.mjs",
+    "publicar-version": "node scripts/publish-version.mjs"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.39.0",
+    "@vercel/blob": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@vercel/node": "^21.0.0",
+    "typescript": "^7.0.2"
+  }
+}

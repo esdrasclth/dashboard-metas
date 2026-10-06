@@ -27,7 +27,8 @@ End Class
 
 ''' <summary>
 ''' The three queries of Crear_Dashboard_Avance_Areas.vbs (same joins, filters and arithmetic). All of them
-''' return AREA, FECHA, PIEZAS, COSTO_TOTAL, ESTILOS, one row per area and day.
+''' return AREA, FECHA, PIEZAS, COSTO_TOTAL, ESTILOS, one row per area and day. Plus the custom float of
+''' avanceMeta.vbs (<see cref="Float"/>), which is a picture of right now and has its own columns.
 ''' Plant, operation, price type, transaction and start date travel as parameters (CAST so the IBM i knows
 ''' their type); libraries cannot be parameters, so they are validated before being put in the text.
 ''' Station quantities and prices come undivided: the configurable divisors are applied in .NET.
@@ -174,6 +175,58 @@ Public NotInheritable Class JdeQueries
             New QueryParameter("transaction", OdbcType.VarChar, settings.ShipmentTransaction.Trim(), 10),
             New QueryParameter("branch", OdbcType.VarChar, settings.Branch.Trim(), 12),
             New QueryParameter("fromYmd", OdbcType.Decimal, CDec(ToYmd(fromDate)))})
+    End Function
+
+    ''' <summary>
+    ''' Custom float (avanceMeta.vbs, blocks 3 and 4 in one query): open FIN orders of F4801 in the float statuses,
+    ''' one row per status and base style. Pieces = SUM(WAUORG) / 100; price = W01 of the exact item (MAX per
+    ''' style, like the .vbs). The product line is the SRSORT of the style in F58C3120 since
+    ''' <paramref name="classifyFrom"/> (one year in the .vbs). F4801 and F58C3120 come from the stations library,
+    ''' where avanceMeta.vbs reads them. Returns ESTATUS, ESTILO, LINEA, PIEZAS, COSTO_TOTAL, ORDENES.
+    ''' </summary>
+    Public Shared Function Float(settings As JdeSettings, classifyFrom As Date) As JdeQuery
+        Dim lib1 = Library(settings.StationsLibrary, "estaciones (Float)")
+        Dim statuses = settings.FloatStatusList()
+        If statuses.Count = 0 Then Throw New ArgumentException("No hay estatus del Float configurados.")
+        Dim markers = String.Join(", ", statuses.Select(Function(s) "CAST(? AS VARCHAR(10))"))
+        Dim sql =
+            "WITH " & PriceCte(settings) & ", " &
+            "W AS (SELECT W.WASRST AS ST, TRIM(SUBSTR(W.WALITM, 1, 9)) AS BASE," &
+            " CAST(CAST(SUM(W.WAUORG) AS DECIMAL(17, 2)) / 100 AS DECIMAL(15, 2)) AS PIEZAS," &
+            " COUNT(*) AS ORDENES," &
+            " CAST(COALESCE(MAX(P.RG), 0) AS DECIMAL(17, 4)) AS RG" &
+            $" FROM {lib1}.F4801 W" &
+            " LEFT JOIN P ON P.PMLITM = W.WALITM" &
+            " WHERE W.WAMMCU = CAST(? AS CHAR(12))" &
+            $" AND W.WASRST IN ({markers})" &
+            " AND UPPER(W.WALITM) LIKE '%FIN%'" &
+            " GROUP BY W.WASRST, TRIM(SUBSTR(W.WALITM, 1, 9))), " &
+            "L AS (SELECT TRIM(SUBSTR(S.SRLITM, 1, 9)) AS BASE, MAX(TRIM(S.SRSORT)) AS PL" &
+            $" FROM {lib1}.F58C3120 S" &
+            " WHERE TRIM(S.SRMCU) = CAST(? AS VARCHAR(12))" &
+            " AND S.SRTRDJ >= CAST(? AS DECIMAL(7, 0))" &
+            " AND TRIM(SUBSTR(S.SRLITM, 1, 9)) IN (SELECT BASE FROM W)" &
+            " GROUP BY TRIM(SUBSTR(S.SRLITM, 1, 9)))" &
+            " SELECT TRIM(W.ST) AS ESTATUS, W.BASE AS ESTILO, COALESCE(L.PL, '') AS LINEA, W.PIEZAS," &
+            " CAST(W.PIEZAS * W.RG AS DECIMAL(17, 2)) AS COSTO_TOTAL, W.ORDENES" &
+            " FROM W LEFT JOIN L ON L.BASE = W.BASE" &
+            " ORDER BY W.ST, W.BASE"
+
+        Dim parameters As New List(Of QueryParameter) From {
+            New QueryParameter("priceType", OdbcType.VarChar, settings.PriceType.Trim(), 10),
+            New QueryParameter("branchPadded", OdbcType.Char, JdeSettings.PadBranch(settings.Branch), 12)}
+        For i = 0 To statuses.Count - 1
+            parameters.Add(New QueryParameter("status" & (i + 1).ToString(Globalization.CultureInfo.InvariantCulture), OdbcType.VarChar, statuses(i), 10))
+        Next
+        parameters.Add(New QueryParameter("branch", OdbcType.VarChar, settings.Branch.Trim(), 12))
+        parameters.Add(New QueryParameter("classifyFromJulian", OdbcType.Decimal, CDec(ToJulian(classifyFrom))))
+        Return New JdeQuery(sql, parameters)
+    End Function
+
+    ''' <summary>The float uses the same W01 price as stations and shipments, so the price divisor applies.</summary>
+    Public Shared Function ScaleFloat(item As FloatItem, settings As JdeSettings) As FloatItem
+        If settings.PriceDivisor > 0D AndAlso settings.PriceDivisor <> 1D Then item.Value = Math.Round(item.Value / settings.PriceDivisor, 2)
+        Return item
     End Function
 
     ''' <summary>Applies the configurable divisors (the SQL returns stations and prices undivided).</summary>

@@ -26,8 +26,36 @@ Partial Class MainWindow
         AddHandler viewModel.CloseRequested, Sub() Close()
         AddHandler _cursorTimer.Tick, Sub()
                                           _cursorTimer.Stop()
-                                          If _isFullScreen Then Mouse.OverrideCursor = Cursors.None
+                                          ' Only while this window is the one in front: never over a dialog
+                                          If _isFullScreen AndAlso IsActive Then HidePointer()
                                       End Sub
+    End Sub
+
+    ''' <summary>
+    ''' Hides the pointer over this window only. Mouse.OverrideCursor would hide it in the whole app, also over
+    ''' Configuración or Datos, where moving the mouse never reaches this window to bring it back.
+    ''' ForceCursor so the buttons' hand cursor does not show through.
+    ''' </summary>
+    Private Sub HidePointer()
+        Cursor = Cursors.None
+        ForceCursor = True
+    End Sub
+
+    Private Sub ShowPointer()
+        ClearValue(CursorProperty)
+        ClearValue(ForceCursorProperty)
+    End Sub
+
+    ''' <summary>A dialog (or another app) took the focus: the pointer must be visible there.</summary>
+    Protected Overrides Sub OnDeactivated(e As EventArgs)
+        MyBase.OnDeactivated(e)
+        _cursorTimer.Stop()
+        ShowPointer()
+    End Sub
+
+    Protected Overrides Sub OnActivated(e As EventArgs)
+        MyBase.OnActivated(e)
+        If _isFullScreen Then _cursorTimer.Start()
     End Sub
 
     Protected Overrides Async Sub OnContentRendered(e As EventArgs)
@@ -43,6 +71,15 @@ Partial Class MainWindow
         If content Is Nothing OrElse content.ActualHeight <= 0 Then Return
         Dim ratio = content.ActualWidth / content.ActualHeight
         DesignRoot.Width = Math.Clamp(DesignHeight * ratio, 1440, 2600)
+    End Sub
+
+    ''' <summary>While an announcement card is open its keys go first (Esc closes it instead of leaving full screen).</summary>
+    Protected Overrides Sub OnPreviewKeyDown(e As KeyEventArgs)
+        If _viewModel.Announcements.HandleKey(e.Key) Then
+            e.Handled = True
+            Return
+        End If
+        MyBase.OnPreviewKeyDown(e)
     End Sub
 
     Protected Overrides Sub OnKeyDown(e As KeyEventArgs)
@@ -61,7 +98,7 @@ Partial Class MainWindow
         Dim p = e.GetPosition(Me)
         If Math.Abs(p.X - _lastMouse.X) < 2 AndAlso Math.Abs(p.Y - _lastMouse.Y) < 2 Then Return
         _lastMouse = p
-        If Mouse.OverrideCursor Is Cursors.None Then Mouse.OverrideCursor = Nothing
+        ShowPointer()
         _cursorTimer.Stop()
         If _isFullScreen Then _cursorTimer.Start()
     End Sub
@@ -73,6 +110,7 @@ Partial Class MainWindow
     Private Sub SetFullScreen(value As Boolean)
         If value = _isFullScreen Then Return
         _isFullScreen = value
+        _viewModel.IsFullScreen = value
         If value Then
             _restoreBounds = New Rect(Left, Top, Width, Height)
             WindowState = WindowState.Normal       ' required so the maximized window covers the taskbar
@@ -82,7 +120,7 @@ Partial Class MainWindow
             _cursorTimer.Start()
         Else
             _cursorTimer.Stop()
-            Mouse.OverrideCursor = Nothing
+            ShowPointer()
             WindowStyle = WindowStyle.SingleBorderWindow
             ResizeMode = ResizeMode.CanResize
             WindowState = WindowState.Normal

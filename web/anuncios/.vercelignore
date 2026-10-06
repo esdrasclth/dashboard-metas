@@ -1,0 +1,4 @@
+scripts/
+*.pem
+.env*
+*.local.md

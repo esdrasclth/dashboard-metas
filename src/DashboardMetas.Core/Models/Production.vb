@@ -11,7 +11,27 @@ Namespace Models
         StationActivity = 2
         ''' <summary>SHP: dcLINK DCTXF transaction CS × W01 price.</summary>
         Shipments = 3
+        ''' <summary>Custom float: open FIN orders of F4801 by status, right now (not per day).</summary>
+        Float = 4
     End Enum
+
+    ''' <summary>
+    ''' One style in one status of the custom float (F4801 open FIN orders), as the float query returns it.
+    ''' It is a picture of right now: the float has no date.
+    ''' </summary>
+    Public NotInheritable Class FloatItem
+        ''' <summary>F4801.WASRST (Y1, Y2, Y3, Y5…).</summary>
+        Public Property Status As String = String.Empty
+        ''' <summary>Base style (first 9 characters of the item).</summary>
+        Public Property Style As String = String.Empty
+        ''' <summary>F58C3120.SRSORT of the style in the last year; empty = not classified.</summary>
+        Public Property ProductLine As String = String.Empty
+        Public Property Pieces As Decimal
+        ''' <summary>Pieces × W01 price, in US$ (0 when the item has no W01 price).</summary>
+        Public Property Value As Decimal
+        ''' <summary>Open orders of the style in that status.</summary>
+        Public Property Orders As Integer
+    End Class
 
     ''' <summary>One day of one area, as returned by any of the three queries.</summary>
     Public NotInheritable Class DailyProduction
@@ -88,8 +108,13 @@ Namespace Models
         Public Shared ReadOnly Property Stations As IReadOnlyList(Of (Code As String, Column As String)) =
             {("Y2", "SRTL02"), ("Y3", "SRTL03"), ("Y5", "SRTL05"), ("Y7", "SRTL07")}
 
+        ''' <summary>The three daily sources (one row per area and day).</summary>
         Public Shared ReadOnly Property AllSources As IReadOnlyList(Of ProductionSource) =
             {ProductionSource.AssemblyDeliveries, ProductionSource.StationActivity, ProductionSource.Shipments}
+
+        ''' <summary>Everything a refresh asks JDE: the three daily sources and the custom float.</summary>
+        Public Shared ReadOnly Property AllQueries As IReadOnlyList(Of ProductionSource) =
+            {ProductionSource.AssemblyDeliveries, ProductionSource.StationActivity, ProductionSource.Shipments, ProductionSource.Float}
 
         Private Sub New()
         End Sub
@@ -106,6 +131,7 @@ Namespace Models
             Select Case source
                 Case ProductionSource.AssemblyDeliveries : Return {AssemblyCode}
                 Case ProductionSource.Shipments : Return {ShipmentsCode}
+                Case ProductionSource.Float : Return Array.Empty(Of String)()
                 Case Else : Return Stations.Select(Function(s) s.Code).ToArray()
             End Select
         End Function
@@ -115,6 +141,7 @@ Namespace Models
             Select Case source
                 Case ProductionSource.AssemblyDeliveries : Return "Y1"
                 Case ProductionSource.Shipments : Return "Embarques"
+                Case ProductionSource.Float : Return "Float"
                 Case Else : Return "Estaciones"
             End Select
         End Function
@@ -124,6 +151,7 @@ Namespace Models
                 Case "Y1", "ENSAMBLE", "ASSEMBLY", "ASSEMBLYDELIVERIES" : source = ProductionSource.AssemblyDeliveries
                 Case "ESTACIONES", "STATIONS", "STATIONACTIVITY", "Y2", "Y3", "Y5", "Y7" : source = ProductionSource.StationActivity
                 Case "EMBARQUES", "SHP", "SHIPMENTS" : source = ProductionSource.Shipments
+                Case "FLOAT", "CUSTOM FLOAT", "CUSTOMFLOAT" : source = ProductionSource.Float
                 Case Else : Return False
             End Select
             Return True
@@ -172,6 +200,12 @@ Namespace Models
         Public Property ShowOverview As Boolean
         ''' <summary>"Daily" (value per day) or "Month" (month to date).</summary>
         Public Property ChartView As String = "Daily"
+        ''' <summary>Last view used: True = the custom float screen.</summary>
+        Public Property ShowFloat As Boolean
+        ''' <summary>True = the automatic rotation also shows the float screen after the last area.</summary>
+        Public Property FloatInRotation As Boolean = True
+        ''' <summary>"Status" (bars per status, stacked by product line) or "Line" (bars per product line).</summary>
+        Public Property FloatChartView As String = "Status"
         Public Property Areas As List(Of AreaDefinition) = New List(Of AreaDefinition)()
 
         Public Function IsEnglish() As Boolean
@@ -191,6 +225,9 @@ Namespace Models
             Language = If(IsEnglish(), "EN", "ES")
             HistoryDays = Math.Clamp(HistoryDays, MinDays, MaxDays)
             RotateSeconds = Math.Clamp(RotateSeconds, MinRotateSeconds, MaxRotateSeconds)
+            ' One screen at a time: the float wins over the overview
+            If ShowFloat Then ShowOverview = False
+            FloatChartView = If(String.Equals(FloatChartView, "Line", StringComparison.OrdinalIgnoreCase), "Line", "Status")
 
             Dim saved As New Dictionary(Of String, AreaDefinition)(StringComparer.OrdinalIgnoreCase)
             For Each area In If(Areas, New List(Of AreaDefinition)())

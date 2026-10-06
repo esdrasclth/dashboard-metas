@@ -6,6 +6,7 @@ Imports DashboardMetas.App.ViewModels
 Imports DashboardMetas.Core.Abstractions
 Imports DashboardMetas.Core.Configuration
 Imports DashboardMetas.Core.Processing
+Imports DashboardMetas.Data.Announcements
 Imports DashboardMetas.Data.Demo
 Imports DashboardMetas.Data.Odbc
 Imports Microsoft.Extensions.Configuration
@@ -27,6 +28,15 @@ Class Application
 
         Dim createdNew As Boolean
         _singleInstance = New Mutex(True, SingleInstanceName, createdNew)
+        ' Started by an automatic update: the previous version is letting go of the lock right now
+        Dim afterUpdate = e.Args.Contains(UpdateService.AfterUpdateArgument)
+        If Not createdNew AndAlso afterUpdate Then
+            Try
+                createdNew = _singleInstance.WaitOne(TimeSpan.FromSeconds(20))
+            Catch ex As AbandonedMutexException
+                createdNew = True
+            End Try
+        End If
         If Not createdNew Then
             MessageBox.Show("Dashboard Metas ya está abierto.", "Dashboard Metas", MessageBoxButton.OK, MessageBoxImage.Information)
             Shutdown()
@@ -38,7 +48,7 @@ Class Application
             MinimumLevel.Information().
             Enrich.FromLogContext().
             WriteTo.File(Path.Combine(paths.LogsFolder, "dashboard-.log"),
-                         rollingInterval:=RollingInterval.Day, retainedFileCountLimit:=60,
+                         rollingInterval:=RollingInterval.Day, retainedFileCountLimit:=60, shared:=True,
                          outputTemplate:="{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}").
             CreateLogger()
 
@@ -58,11 +68,45 @@ Class Application
 
             Dim window = _host.Services.GetRequiredService(Of MainWindow)()
             MainWindow = window
+            If afterUpdate Then AddHandler window.ContentRendered, Sub() SignalUpdateReady()
             window.Show()
         Catch ex As Exception
             Log.Fatal(ex, "No se pudo iniciar la aplicación")
             MessageBox.Show("No se pudo iniciar Dashboard Metas:" & vbCrLf & ex.Message, "Dashboard Metas", MessageBoxButton.OK, MessageBoxImage.Error)
             Shutdown(1)
+        End Try
+    End Sub
+
+    ''' <summary>Tells the previous version (waiting in UpdateService.HandOff) that this one opened fine.</summary>
+    Private Shared Sub SignalUpdateReady()
+        Try
+            Dim ready As EventWaitHandle = Nothing
+            If EventWaitHandle.TryOpenExisting(UpdateService.ReadyEventName, ready) Then
+                Using ready
+                    ready.Set()
+                End Using
+            End If
+            Log.Information("Versión {Version} iniciada tras la actualización automática", UpdateService.CurrentVersion.ToString(3))
+        Catch ex As Exception
+            Log.Warning(ex, "No se pudo avisar a la versión anterior")
+        End Try
+    End Sub
+
+    ''' <summary>During an update: let the new version take the single-instance lock (call on the UI thread).</summary>
+    Public Sub ReleaseSingleInstance()
+        Try
+            _singleInstance?.ReleaseMutex()
+        Catch ex As ApplicationException
+            ' not owned
+        End Try
+    End Sub
+
+    ''' <summary>The update failed: this version keeps running and takes the lock back.</summary>
+    Public Sub AcquireSingleInstance()
+        Try
+            _singleInstance?.WaitOne(TimeSpan.FromSeconds(10))
+        Catch ex As AbandonedMutexException
+            ' the failed version died holding it: it is ours now
         End Try
     End Sub
 
@@ -87,6 +131,9 @@ Class Application
         services.Configure(Of JdeSettings)(builder.Configuration.GetSection(JdeSettings.SectionName))
         services.Configure(Of DashboardSettings)(builder.Configuration.GetSection(DashboardSettings.SectionName))
         services.Configure(Of DemoSettings)(builder.Configuration.GetSection(DemoSettings.SectionName))
+        services.Configure(Of AnnouncementSettings)(builder.Configuration.GetSection(AnnouncementSettings.SectionName))
+        services.Configure(Of StatusSettings)(builder.Configuration.GetSection(StatusSettings.SectionName))
+        services.Configure(Of UpdateSettings)(builder.Configuration.GetSection(UpdateSettings.SectionName))
 
         services.AddSingleton(paths)
         services.AddSingleton(New CommandLineArgs(args))
@@ -110,6 +157,22 @@ Class Application
         services.AddSingleton(Of UserSettingsWriter)()
         services.AddSingleton(Of DiagnosticsService)()
         services.AddSingleton(Of IDialogService, DialogService)()
+
+        ' Remote announcements: checked in the background, shown on top of the dashboard
+        services.AddSingleton(Of AnnouncementFeedClient)()
+        services.AddSingleton(Of DemoAnnouncementSource)()
+        services.AddSingleton(Of AnnouncementService)()
+        services.AddHostedService(Function(sp) sp.GetRequiredService(Of AnnouncementService)())
+        services.AddSingleton(Of AnnouncementsViewModel)()
+
+        ' Screen status reported to the panel, signed with this PC's own key
+        services.AddSingleton(Of DeviceIdentity)()
+        services.AddSingleton(Of ScreenReporter)()
+        services.AddHostedService(Function(sp) sp.GetRequiredService(Of ScreenReporter)())
+
+        ' Automatic updates (they arrive with the replies to the status reports)
+        services.AddSingleton(Of UpdateService)()
+        services.AddHostedService(Function(sp) sp.GetRequiredService(Of UpdateService)())
 
         ' View models and windows
         services.AddSingleton(Of MainViewModel)()

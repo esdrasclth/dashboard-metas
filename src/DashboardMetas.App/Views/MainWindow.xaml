@@ -14,6 +14,7 @@
         <KeyBinding Key="Left" Command="{Binding PreviousAreaCommand}" />
         <KeyBinding Key="V" Command="{Binding ToggleOverviewCommand}" />
         <KeyBinding Key="M" Command="{Binding ToggleChartCommand}" />
+        <KeyBinding Key="F" Command="{Binding ToggleFloatCommand}" />
     </Window.InputBindings>
 
     <Window.Resources>
@@ -197,309 +198,596 @@
         </Style>
     </Window.Resources>
 
-    <Viewbox Stretch="Uniform">
-        <!-- Everything is laid out on a 1080-high design; the width follows the screen proportion (see code-behind) -->
-        <Grid x:Name="DesignRoot" Width="1920" Height="1080">
-            <Grid Margin="44,30,44,24">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="212" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="150" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+    <Grid>
+        <Viewbox Stretch="Uniform">
+            <!-- Everything is laid out on a 1080-high design; the width follows the screen proportion (see code-behind) -->
+            <Grid x:Name="DesignRoot" Width="1920" Height="1080">
+                <Grid Margin="44,30,44,24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="212" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="150" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                <!-- ===================== Header ===================== -->
-                <Grid Margin="0,0,0,22">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DisplayFont}" FontSize="46" FontWeight="Bold"
-                                       Foreground="{StaticResource InkBrush}" TextTrimming="CharacterEllipsis" MaxWidth="1150" />
-                            <Border Background="{StaticResource WarnBackBrush}" BorderBrush="{StaticResource OrangeBrush}" BorderThickness="1.5"
-                                    CornerRadius="4" Padding="14,4" Margin="20,6,0,0" VerticalAlignment="Center"
-                                    Visibility="{Binding IsDemo, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="{Binding Labels.Demo}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource OrangeTextBrush}" />
-                            </Border>
+                    <!-- ===================== Header ===================== -->
+                    <Grid Margin="0,0,0,22">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- ===================== Announcement strip (banner): pushes the dashboard down, never covers it ===================== -->
+                        <Border Grid.Row="1" Grid.ColumnSpan="2" Margin="0,16,0,0" CornerRadius="8" BorderThickness="1"
+                                DataContext="{Binding Announcements}"
+                                Visibility="{Binding HasBanner, Converter={StaticResource BoolToVisibility}}"
+                                Background="{Binding Banner.Severity, Converter={StaticResource SeverityToBrush}, ConverterParameter=soft}"
+                                BorderBrush="{Binding Banner.Severity, Converter={StaticResource SeverityToBrush}, ConverterParameter=accent}"
+                                AutomationProperties.Name="{Binding Banner.Title}" AutomationProperties.LiveSetting="Polite">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border CornerRadius="7,0,0,7" Background="{Binding Banner.Severity, Converter={StaticResource SeverityToBrush}, ConverterParameter=accent}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Banner.Severity, Converter={StaticResource SeverityToGlyph}}" FontFamily="{StaticResource IconFont}"
+                                           FontSize="26" Margin="20,0,16,0" VerticalAlignment="Center"
+                                           Foreground="{Binding Banner.Severity, Converter={StaticResource SeverityToBrush}, ConverterParameter=text}" />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="0,12" TextTrimming="CharacterEllipsis" FontSize="21"
+                                           ToolTip="{Binding Banner.Message}">
+                                    <Run Text="{Binding Banner.Title, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                    <Run Text="  " /><Run Text="{Binding Banner.Message, Mode=OneWay}" Foreground="{StaticResource InkBrush}" />
+                                </TextBlock>
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,10,0">
+                                    <TextBlock Text="{Binding Banner.UntilText}" FontSize="16" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                                    <Button Command="{Binding NextBannerCommand}" Visibility="{Binding HasManyBanners, Converter={StaticResource BoolToVisibility}}"
+                                            Content="{Binding BannerPage}" FontSize="15" FontWeight="SemiBold" Padding="12,4" Margin="0,0,8,0" Background="Transparent" />
+                                    <Button Command="{Binding DismissBannerCommand}" ToolTip="{Binding CloseTip}" AutomationProperties.Name="{Binding CloseTip}"
+                                            Visibility="{Binding Banner.CanDismiss, Converter={StaticResource BoolToVisibility}}"
+                                            Content="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="15" Padding="10,7" Background="Transparent" BorderThickness="0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DisplayFont}" FontSize="46" FontWeight="Bold"
+                                           Foreground="{StaticResource InkBrush}" TextTrimming="CharacterEllipsis" MaxWidth="1150" />
+                                <Border Background="{StaticResource WarnBackBrush}" BorderBrush="{StaticResource OrangeBrush}" BorderThickness="1.5"
+                                        CornerRadius="4" Padding="14,4" Margin="20,6,0,0" VerticalAlignment="Center"
+                                        Visibility="{Binding IsDemo, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="{Binding Labels.Demo}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource OrangeTextBrush}" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Subtitle}" FontSize="20" Foreground="{StaticResource MutedBrush}" Margin="2,2,0,0" />
                         </StackPanel>
-                        <TextBlock Text="{Binding Subtitle}" FontSize="20" Foreground="{StaticResource MutedBrush}" Margin="2,2,0,0" />
-                    </StackPanel>
 
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <TextBlock HorizontalAlignment="Right" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource InkBrush}">
-                            <Run Text="{Binding DateText, Mode=OneWay}" /><Run Text="  ·  " Foreground="{StaticResource MutedBrush}" /><Run Text="{Binding ClockText, Mode=OneWay}" />
-                        </TextBlock>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0" ToolTip="{Binding StatusDetail}">
-                            <Ellipse x:Name="StatusDot" Width="14" Height="14" VerticalAlignment="Center" Fill="{Binding StatusTone, Converter={StaticResource ToneToDot}}">
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                                                <DataTrigger.EnterActions>
-                                                    <BeginStoryboard x:Name="Pulse">
-                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.25" Duration="0:0:0.7" />
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </DataTrigger.EnterActions>
-                                                <DataTrigger.ExitActions>
-                                                    <StopStoryboard BeginStoryboardName="Pulse" />
-                                                </DataTrigger.ExitActions>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Ellipse.Style>
-                            </Ellipse>
-                            <TextBlock Text="{Binding StatusText}" FontSize="18" Margin="10,0,0,0" VerticalAlignment="Center"
-                                       Foreground="{Binding StatusTone, Converter={StaticResource ToneToText}}" />
-                            <Button Content="{Binding Labels.Connect}" Command="{Binding ConnectCommand}" Style="{StaticResource PrimaryButton}"
-                                    FontSize="16" Padding="16,4" Margin="14,0,0,0"
-                                    Visibility="{Binding NeedsPassword, Converter={StaticResource BoolToVisibility}}" />
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock HorizontalAlignment="Right" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource InkBrush}">
+                                <Run Text="{Binding DateText, Mode=OneWay}" /><Run Text="  ·  " Foreground="{StaticResource MutedBrush}" /><Run Text="{Binding ClockText, Mode=OneWay}" />
+                            </TextBlock>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0" ToolTip="{Binding StatusDetail}">
+                                <Ellipse x:Name="StatusDot" Width="14" Height="14" VerticalAlignment="Center" Fill="{Binding StatusTone, Converter={StaticResource ToneToDot}}">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard x:Name="Pulse">
+                                                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.25" Duration="0:0:0.7" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <StopStoryboard BeginStoryboardName="Pulse" />
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="{Binding StatusText}" FontSize="18" Margin="10,0,0,0" VerticalAlignment="Center"
+                                           Foreground="{Binding StatusTone, Converter={StaticResource ToneToText}}" />
+                                <Button Content="{Binding Labels.Connect}" Command="{Binding ConnectCommand}" Style="{StaticResource PrimaryButton}"
+                                        FontSize="16" Padding="16,4" Margin="14,0,0,0"
+                                        Visibility="{Binding NeedsPassword, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </Grid>
+                    </Grid>
 
-                <!-- ===================== Top KPIs ===================== -->
-                <Grid Grid.Row="1" Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                    <!-- ===================== Top KPIs ===================== -->
+                    <Grid Grid.Row="1" Visibility="{Binding IsDetail, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <!-- Today's attainment (navy) -->
-                    <Border Background="{StaticResource NavyBrush}" CornerRadius="8" Padding="28,22">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.18" Color="#0D2554" />
-                        </Border.Effect>
+                        <!-- Today's attainment (navy) -->
+                        <Border Background="{StaticResource NavyBrush}" CornerRadius="8" Padding="28,22">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.18" Color="#0D2554" />
+                            </Border.Effect>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="{Binding Labels.AttainmentTitle}" FontSize="17" FontWeight="Bold" Foreground="White" />
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Viewbox StretchDirection="DownOnly" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding AttainmentText}" FontFamily="{StaticResource DisplayFont}" FontSize="64" FontWeight="Bold" Foreground="White" />
+                                    </Viewbox>
+                                    <Border Grid.Column="1" Style="{StaticResource PacePill}" Padding="14,5" Margin="10,0,0,0">
+                                        <TextBlock Text="{Binding PillText}" FontSize="14" FontWeight="Bold"
+                                                   Foreground="{Binding IsGoalMet, Converter={StaticResource BoolToBrush}, ConverterParameter='CardBrush|NavyBrush'}" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Grid.Row="2" Text="{Binding AttainmentSubtitle}" FontSize="17" Foreground="{StaticResource OnNavyMutedBrush}" TextTrimming="CharacterEllipsis" />
+                                <Grid Grid.Row="3" Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Height="12" VerticalAlignment="Center" ClipToBounds="True"
+                                          ToolTip="{Binding AttainmentSubtitle}">
+                                        <Border Background="{StaticResource RailBrush}" CornerRadius="2" />
+                                        <Border CornerRadius="2" RenderTransformOrigin="0,0.5">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform ScaleX="{Binding AttainmentRatio}" />
+                                            </Border.RenderTransform>
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="{StaticResource ProgressBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsGoalMet}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource TealBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                    </Grid>
+                                    <!-- White tick: where the bar should be at this hour of the shift -->
+                                    <Grid Height="22" VerticalAlignment="Center" IsHitTestVisible="False"
+                                          Visibility="{Binding ShowPaceMarker, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="{Binding PaceMarkerRatio, Converter={StaticResource RatioToStar}, ConverterParameter=left}" />
+                                            <ColumnDefinition Width="{Binding PaceMarkerRatio, Converter={StaticResource RatioToStar}, ConverterParameter=right}" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="1" Width="3" Background="White" CornerRadius="1" HorizontalAlignment="Left" Margin="-1.5,0,0,0" />
+                                    </Grid>
+                                    <TextBlock Grid.Column="1" Text="{Binding AttainmentGoal}" FontSize="15" FontWeight="Bold" Foreground="White" Margin="14,0,0,0" VerticalAlignment="Center" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <ContentControl Grid.Column="2" Content="{Binding TodayCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
+                        <ContentControl Grid.Column="4" Content="{Binding GapCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
+                        <ContentControl Grid.Column="6" Content="{Binding WeekCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
+                    </Grid>
+
+                    <!-- ===================== Chart ===================== -->
+                    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,24" Padding="28,20,24,14" Visibility="{Binding IsDetail, Converter={StaticResource BoolToVisibility}}">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock Text="{Binding Labels.AttainmentTitle}" FontSize="17" FontWeight="Bold" Foreground="White" />
-                            <Grid Grid.Row="1">
+                            <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Viewbox StretchDirection="DownOnly" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding AttainmentText}" FontFamily="{StaticResource DisplayFont}" FontSize="64" FontWeight="Bold" Foreground="White" />
-                                </Viewbox>
-                                <Border Grid.Column="1" Style="{StaticResource PacePill}" Padding="14,5" Margin="10,0,0,0">
-                                    <TextBlock Text="{Binding PillText}" FontSize="14" FontWeight="Bold"
-                                               Foreground="{Binding IsGoalMet, Converter={StaticResource BoolToBrush}, ConverterParameter='CardBrush|NavyBrush'}" />
-                                </Border>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,24,0" ToolTip="M">
+                                        <Button Content="{Binding Labels.ByDay}" Command="{Binding ShowDailyChartCommand}" Margin="0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SegmentButton}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsMonthChart}" Value="False">
+                                                            <Setter Property="Background" Value="{StaticResource NavyBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}" />
+                                                            <Setter Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Content="{Binding Labels.Month}" Command="{Binding ShowMonthChartCommand}" Margin="6,0,0,0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SegmentButton}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsMonthChart}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource NavyBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}" />
+                                                            <Setter Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </StackPanel>
+                                    <TextBlock VerticalAlignment="Center">
+                                        <Run Text="{Binding ChartTitle, Mode=OneWay}" FontFamily="{StaticResource DisplayFont}" FontSize="28" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                        <Run Text="   " /><Run Text="{Binding ChartRange, Mode=OneWay}" FontSize="19" Foreground="{StaticResource MutedBrush}" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <!-- Month legend -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                                            Visibility="{Binding IsMonthChart, Converter={StaticResource BoolToVisibility}}">
+                                    <Rectangle Width="22" Height="4" RadiusX="2" RadiusY="2" Fill="{StaticResource TealBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding LegendMonthActual}" Style="{StaticResource LegendText}" />
+                                    <Line X1="0" X2="22" Y1="0" Y2="0" Stroke="{StaticResource NavyBrush}" StrokeThickness="2.5" StrokeDashArray="1.6 1.2" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding LegendMonthTarget}" Style="{StaticResource LegendText}" />
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding ShowMonthProjectionLegend, Converter={StaticResource BoolToVisibility}}">
+                                        <Line X1="0" X2="22" Y1="0" Y2="0" Stroke="{StaticResource MutedBrush}" StrokeThickness="2.5" StrokeDashArray="1.6 1.2" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding LegendMonthProjection}" Style="{StaticResource LegendText}" Margin="8,0,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <!-- Daily legend -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                                            Visibility="{Binding IsMonthChart, Converter={StaticResource InverseBoolToVisibility}}">
+                                    <Border Style="{StaticResource LegendSwatch}" Background="{StaticResource TealBrush}" />
+                                    <TextBlock Text="{Binding LegendMet}" Style="{StaticResource LegendText}" />
+                                    <Border Style="{StaticResource LegendSwatch}" Background="{StaticResource OrangeBrush}" />
+                                    <TextBlock Text="{Binding LegendBelow}" Style="{StaticResource LegendText}" />
+                                    <Border Style="{StaticResource LegendSwatch}" Background="{StaticResource GreyBarBrush}" />
+                                    <TextBlock Text="{Binding LegendToday}" Style="{StaticResource LegendText}" Margin="8,0,0,0" />
+                                    <StackPanel Orientation="Horizontal" Margin="28,0,0,0" Visibility="{Binding ShowProjectionLegend, Converter={StaticResource BoolToVisibility}}">
+                                        <Rectangle Width="18" Height="18" RadiusX="3" RadiusY="3" Stroke="{StaticResource MutedBrush}" StrokeThickness="2"
+                                                   StrokeDashArray="2 1.5" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding LegendProjection}" Style="{StaticResource LegendText}" Margin="8,0,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
                             </Grid>
-                            <TextBlock Grid.Row="2" Text="{Binding AttainmentSubtitle}" FontSize="17" Foreground="{StaticResource OnNavyMutedBrush}" TextTrimming="CharacterEllipsis" />
-                            <Grid Grid.Row="3" Margin="0,10,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Grid Height="12" VerticalAlignment="Center" ClipToBounds="True"
-                                      ToolTip="{Binding AttainmentSubtitle}">
-                                    <Border Background="{StaticResource RailBrush}" CornerRadius="2" />
-                                    <Border CornerRadius="2" RenderTransformOrigin="0,0.5">
-                                        <Border.RenderTransform>
-                                            <ScaleTransform ScaleX="{Binding AttainmentRatio}" />
-                                        </Border.RenderTransform>
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Background" Value="{StaticResource ProgressBrush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsGoalMet}" Value="True">
-                                                        <Setter Property="Background" Value="{StaticResource TealBrush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                    </Border>
-                                </Grid>
-                                <!-- White tick: where the bar should be at this hour of the shift -->
-                                <Grid Height="22" VerticalAlignment="Center" IsHitTestVisible="False"
-                                      Visibility="{Binding ShowPaceMarker, Converter={StaticResource BoolToVisibility}}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="{Binding PaceMarkerRatio, Converter={StaticResource RatioToStar}, ConverterParameter=left}" />
-                                        <ColumnDefinition Width="{Binding PaceMarkerRatio, Converter={StaticResource RatioToStar}, ConverterParameter=right}" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="1" Width="3" Background="White" CornerRadius="1" HorizontalAlignment="Left" Margin="-1.5,0,0,0" />
-                                </Grid>
-                                <TextBlock Grid.Column="1" Text="{Binding AttainmentGoal}" FontSize="15" FontWeight="Bold" Foreground="White" Margin="14,0,0,0" VerticalAlignment="Center" />
-                            </Grid>
+                            <ctl:DailyBarChart Grid.Row="1" Margin="0,6,0,0" Snapshot="{Binding Snapshot}" English="{Binding English}"
+                                               AutomationProperties.Name="{Binding ChartTitle}"
+                                               Visibility="{Binding IsMonthChart, Converter={StaticResource InverseBoolToVisibility}}" />
+                            <ctl:MonthChart Grid.Row="1" Margin="0,6,0,0" Snapshot="{Binding MonthSnapshot}" English="{Binding English}"
+                                            AutomationProperties.Name="{Binding ChartTitle}"
+                                            Visibility="{Binding IsMonthChart, Converter={StaticResource BoolToVisibility}}" />
                         </Grid>
                     </Border>
 
-                    <ContentControl Grid.Column="2" Content="{Binding TodayCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
-                    <ContentControl Grid.Column="4" Content="{Binding GapCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
-                    <ContentControl Grid.Column="6" Content="{Binding WeekCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
-                </Grid>
-
-                <!-- ===================== Chart ===================== -->
-                <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,24" Padding="28,20,24,14" Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" Margin="0,0,24,0" ToolTip="M">
-                                    <Button Content="{Binding Labels.ByDay}" Command="{Binding ShowDailyChartCommand}" Margin="0">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SegmentButton}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMonthChart}" Value="False">
-                                                        <Setter Property="Background" Value="{StaticResource NavyBrush}" />
-                                                        <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}" />
-                                                        <Setter Property="Foreground" Value="White" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Content="{Binding Labels.Month}" Command="{Binding ShowMonthChartCommand}" Margin="6,0,0,0">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SegmentButton}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMonthChart}" Value="True">
-                                                        <Setter Property="Background" Value="{StaticResource NavyBrush}" />
-                                                        <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}" />
-                                                        <Setter Property="Foreground" Value="White" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                </StackPanel>
-                                <TextBlock VerticalAlignment="Center">
-                                    <Run Text="{Binding ChartTitle, Mode=OneWay}" FontFamily="{StaticResource DisplayFont}" FontSize="28" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
-                                    <Run Text="   " /><Run Text="{Binding ChartRange, Mode=OneWay}" FontSize="19" Foreground="{StaticResource MutedBrush}" />
-                                </TextBlock>
-                            </StackPanel>
-                            <!-- Month legend -->
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
-                                        Visibility="{Binding IsMonthChart, Converter={StaticResource BoolToVisibility}}">
-                                <Rectangle Width="22" Height="4" RadiusX="2" RadiusY="2" Fill="{StaticResource TealBrush}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding LegendMonthActual}" Style="{StaticResource LegendText}" />
-                                <Line X1="0" X2="22" Y1="0" Y2="0" Stroke="{StaticResource NavyBrush}" StrokeThickness="2.5" StrokeDashArray="1.6 1.2" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding LegendMonthTarget}" Style="{StaticResource LegendText}" />
-                                <StackPanel Orientation="Horizontal" Visibility="{Binding ShowMonthProjectionLegend, Converter={StaticResource BoolToVisibility}}">
-                                    <Line X1="0" X2="22" Y1="0" Y2="0" Stroke="{StaticResource MutedBrush}" StrokeThickness="2.5" StrokeDashArray="1.6 1.2" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding LegendMonthProjection}" Style="{StaticResource LegendText}" Margin="8,0,0,0" />
-                                </StackPanel>
-                            </StackPanel>
-                            <!-- Daily legend -->
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
-                                        Visibility="{Binding IsMonthChart, Converter={StaticResource InverseBoolToVisibility}}">
-                                <Border Style="{StaticResource LegendSwatch}" Background="{StaticResource TealBrush}" />
-                                <TextBlock Text="{Binding LegendMet}" Style="{StaticResource LegendText}" />
-                                <Border Style="{StaticResource LegendSwatch}" Background="{StaticResource OrangeBrush}" />
-                                <TextBlock Text="{Binding LegendBelow}" Style="{StaticResource LegendText}" />
-                                <Border Style="{StaticResource LegendSwatch}" Background="{StaticResource GreyBarBrush}" />
-                                <TextBlock Text="{Binding LegendToday}" Style="{StaticResource LegendText}" Margin="8,0,0,0" />
-                                <StackPanel Orientation="Horizontal" Margin="28,0,0,0" Visibility="{Binding ShowProjectionLegend, Converter={StaticResource BoolToVisibility}}">
-                                    <Rectangle Width="18" Height="18" RadiusX="3" RadiusY="3" Stroke="{StaticResource MutedBrush}" StrokeThickness="2"
-                                               StrokeDashArray="2 1.5" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding LegendProjection}" Style="{StaticResource LegendText}" Margin="8,0,0,0" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Grid>
-                        <ctl:DailyBarChart Grid.Row="1" Margin="0,6,0,0" Snapshot="{Binding Snapshot}" English="{Binding English}"
-                                           AutomationProperties.Name="{Binding ChartTitle}"
-                                           Visibility="{Binding IsMonthChart, Converter={StaticResource InverseBoolToVisibility}}" />
-                        <ctl:MonthChart Grid.Row="1" Margin="0,6,0,0" Snapshot="{Binding MonthSnapshot}" English="{Binding English}"
-                                        AutomationProperties.Name="{Binding ChartTitle}"
-                                        Visibility="{Binding IsMonthChart, Converter={StaticResource BoolToVisibility}}" />
+                    <!-- ===================== Bottom KPIs ===================== -->
+                    <Grid Grid.Row="3" Visibility="{Binding IsDetail, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="1.25*" />
+                        </Grid.ColumnDefinitions>
+                        <ContentControl Content="{Binding LastClosedCard}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
+                        <ContentControl Grid.Column="2" Content="{Binding AverageCard}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
+                        <ContentControl Grid.Column="4" Content="{Binding DaysOnGoalCard}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
+                        <ContentControl Grid.Column="6" Content="{Binding MonthCard}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
                     </Grid>
-                </Border>
 
-                <!-- ===================== Bottom KPIs ===================== -->
-                <Grid Grid.Row="3" Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="1.25*" />
-                    </Grid.ColumnDefinitions>
-                    <ContentControl Content="{Binding LastClosedCard}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
-                    <ContentControl Grid.Column="2" Content="{Binding AverageCard}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
-                    <ContentControl Grid.Column="4" Content="{Binding DaysOnGoalCard}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
-                    <ContentControl Grid.Column="6" Content="{Binding MonthCard}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
+                    <!-- ===================== Float: total and top KPIs ===================== -->
+                    <Grid Grid.Row="1" Visibility="{Binding IsFloat, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Whole float (navy); the bar under it is the share of each product line, same colours as the chart -->
+                        <Border Background="{StaticResource NavyBrush}" CornerRadius="8" Padding="28,22">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.18" Color="#0D2554" />
+                            </Border.Effect>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="{Binding Labels.FloatTotalTitle}" FontSize="17" FontWeight="Bold" Foreground="White" />
+                                <Viewbox Grid.Row="1" StretchDirection="DownOnly" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding FloatTotalText}" FontFamily="{StaticResource DisplayFont}" FontSize="64" FontWeight="Bold" Foreground="White" />
+                                </Viewbox>
+                                <TextBlock Grid.Row="2" Text="{Binding FloatTotalSubtitle}" FontSize="17" Foreground="{StaticResource OnNavyMutedBrush}" TextTrimming="CharacterEllipsis" />
+                                <Grid Grid.Row="3" Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ctl:FloatShareBar Height="12" VerticalAlignment="Center" Snapshot="{Binding FloatSnapshot}" English="{Binding English}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding FloatTakenText}" FontSize="15" FontWeight="Bold" Foreground="White" Margin="14,0,0,0" VerticalAlignment="Center" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <ContentControl Grid.Column="2" Content="{Binding FloatLargestCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
+                        <ContentControl Grid.Column="4" Content="{Binding FloatLineCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
+                        <ContentControl Grid.Column="6" Content="{Binding FloatUnpricedCard}" ContentTemplate="{StaticResource KpiLarge}" Focusable="False" />
+                    </Grid>
+
+                    <!-- ===================== Float chart ===================== -->
+                    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,24" Padding="28,20,24,14" Visibility="{Binding IsFloat, Converter={StaticResource BoolToVisibility}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <DockPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="0,0,24,0" ToolTip="M">
+                                        <Button Content="{Binding Labels.ByStatus}" Command="{Binding ShowFloatByStatusCommand}" Margin="0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SegmentButton}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FloatByLine}" Value="False">
+                                                            <Setter Property="Background" Value="{StaticResource NavyBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}" />
+                                                            <Setter Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Content="{Binding Labels.ByLine}" Command="{Binding ShowFloatByLineCommand}" Margin="6,0,0,0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SegmentButton}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FloatByLine}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource NavyBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}" />
+                                                            <Setter Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </StackPanel>
+                                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding ChartRange}">
+                                        <Run Text="{Binding ChartTitle, Mode=OneWay}" FontFamily="{StaticResource DisplayFont}" FontSize="28" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                        <Run Text="   " /><Run Text="{Binding ChartRange, Mode=OneWay}" FontSize="19" Foreground="{StaticResource MutedBrush}" />
+                                    </TextBlock>
+                                </DockPanel>
+                                <!-- Product line legend (the chart uses the same colour slots); by line each bar already carries its name -->
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding FloatLegend}" VerticalAlignment="Center" Focusable="False"
+                                              Visibility="{Binding FloatByLine, Converter={StaticResource InverseBoolToVisibility}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:FloatLegendItem}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Style="{StaticResource LegendSwatch}" Background="{Binding Slot, Converter={StaticResource LineSlotToBrush}}" />
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource LegendText}" Margin="8,0,22,0" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                            <ctl:FloatChart Grid.Row="1" Margin="0,6,0,0" Snapshot="{Binding FloatSnapshot}" ByLine="{Binding FloatByLine}" English="{Binding English}"
+                                            AutomationProperties.Name="{Binding ChartTitle}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- ===================== Float: one card per status ===================== -->
+                    <!-- Same columns as the area's bottom row (CardRowPanel), so the cards keep their size in the rotation -->
+                    <ItemsControl Grid.Row="3" ItemsSource="{Binding FloatStatusCards}" Focusable="False"
+                                  Visibility="{Binding IsFloat, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ctl:CardRowPanel Spacing="24" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource KpiSmall}" Focusable="False" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- ===================== Overview: all areas at once ===================== -->
+                    <ItemsControl Grid.Row="1" Grid.RowSpan="3" Margin="-12,-12,-12,0" ItemsSource="{Binding Tiles}" ItemTemplate="{StaticResource AreaTile}"
+                                  Focusable="False" Visibility="{Binding IsOverview, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="{Binding TileColumns}" Rows="{Binding TileRows}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                    <!-- ===================== Footer ===================== -->
+                    <Grid Grid.Row="4" Margin="0,20,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock TextTrimming="CharacterEllipsis" FontSize="16">
+                                <Run Text="{Binding FooterGoal, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                <Run Text="  " /><Run Text="{Binding FooterInfo, Mode=OneWay}" Foreground="{StaticResource MutedBrush}" />
+                            </TextBlock>
+                            <ItemsControl ItemsSource="{Binding AreaDots}" Margin="0,8,0,0" Focusable="False"
+                                          Visibility="{Binding AreaDots, Converter={StaticResource EmptyToCollapsed}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Ellipse Width="10" Height="10" Margin="0,0,8,0" Fill="{Binding Converter={StaticResource BoolToBrush}, ConverterParameter='NavyBrush|LineBrush'}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="{Binding ViewToggleText}" Command="{Binding ToggleOverviewCommand}" ToolTip="V" Style="{StaticResource FooterButton}"
+                                    Margin="0,0,12,0" BorderBrush="{StaticResource NavyBrush}" BorderThickness="1.5" />
+                            <!-- Float screen on/off; navy while it is on screen -->
+                            <Button Content="{Binding Labels.Float}" Command="{Binding ToggleFloatCommand}" ToolTip="{Binding Labels.FloatTip}" Margin="0,0,24,0" BorderThickness="1.5">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource FooterButton}">
+                                        <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsFloat}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource NavyBrush}" />
+                                                <Setter Property="Foreground" Value="White" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <TextBlock Text="{Binding Labels.Area}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0"
+                                       Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}" />
+                            <!-- Also on the Float (choosing an area leaves it), so the footer buttons do not move in the rotation -->
+                            <Button Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}" Command="{Binding ChangeAreaCommand}" ToolTip="{Binding Labels.ChangeArea}" FontSize="17" FontWeight="SemiBold" Padding="18,9"
+                                    MinWidth="270" HorizontalContentAlignment="Stretch" BorderBrush="{StaticResource NavyBrush}" BorderThickness="1.5">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="▾" Margin="14,0,0,0" Foreground="{StaticResource MutedBrush}" />
+                                    <TextBlock Text="{Binding AreaButtonText}" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </Button>
+                            <Button Content="{Binding Labels.Data}" ToolTip="{Binding Labels.DataTip}" Command="{Binding DataCommand}" Style="{StaticResource FooterButton}" Margin="24,0,0,0" Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}" />
+                            <Button Content="{Binding Labels.Settings}" ToolTip="{Binding Labels.SettingsTip}" Command="{Binding SettingsCommand}" Style="{StaticResource FooterButton}" />
+                            <Button Content="{Binding Labels.Refresh}" ToolTip="F5" Command="{Binding RefreshCommand}" Style="{StaticResource FooterPrimaryButton}" />
+                            <Button x:Name="FullScreenButton" Content="⛶" ToolTip="{Binding Labels.FullScreenTip}" Click="OnToggleFullScreen" Style="{StaticResource FooterButton}" Padding="16,9" />
+                            <Button Content="{Binding Labels.ExitText}" Command="{Binding ExitCommand}" Style="{StaticResource FooterButton}" />
+                        </StackPanel>
+                    </Grid>
                 </Grid>
 
-                <!-- ===================== Overview: all areas at once ===================== -->
-                <ItemsControl Grid.Row="1" Grid.RowSpan="3" Margin="-12,-12,-12,0" ItemsSource="{Binding Tiles}" ItemTemplate="{StaticResource AreaTile}"
-                              Focusable="False" Visibility="{Binding IsOverview, Converter={StaticResource BoolToVisibility}}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="{Binding TileColumns}" Rows="{Binding TileRows}" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ItemsControl>
-
-                <!-- ===================== Footer ===================== -->
-                <Grid Grid.Row="4" Margin="0,20,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock TextTrimming="CharacterEllipsis" FontSize="16">
-                            <Run Text="{Binding FooterGoal, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
-                            <Run Text="  " /><Run Text="{Binding FooterInfo, Mode=OneWay}" Foreground="{StaticResource MutedBrush}" />
-                        </TextBlock>
-                        <ItemsControl ItemsSource="{Binding AreaDots}" Margin="0,8,0,0" Focusable="False"
-                                      Visibility="{Binding AreaDots, Converter={StaticResource EmptyToCollapsed}}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Ellipse Width="10" Height="10" Margin="0,0,8,0" Fill="{Binding Converter={StaticResource BoolToBrush}, ConverterParameter='NavyBrush|LineBrush'}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="{Binding ViewToggleText}" Command="{Binding ToggleOverviewCommand}" ToolTip="V" Style="{StaticResource FooterButton}"
-                                Margin="0,0,24,0" BorderBrush="{StaticResource NavyBrush}" BorderThickness="1.5" />
-                        <TextBlock Text="{Binding Labels.Area}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0"
-                                   Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}" />
-                        <Button Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}" Command="{Binding ChangeAreaCommand}" ToolTip="{Binding Labels.ChangeArea}" FontSize="17" FontWeight="SemiBold" Padding="18,9"
-                                MinWidth="270" HorizontalContentAlignment="Stretch" BorderBrush="{StaticResource NavyBrush}" BorderThickness="1.5">
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Text="▾" Margin="14,0,0,0" Foreground="{StaticResource MutedBrush}" />
-                                <TextBlock Text="{Binding AreaButtonText}" TextTrimming="CharacterEllipsis" />
-                            </DockPanel>
-                        </Button>
-                        <Button Content="{Binding Labels.Data}" ToolTip="{Binding Labels.DataTip}" Command="{Binding DataCommand}" Style="{StaticResource FooterButton}" Margin="24,0,0,0" Visibility="{Binding IsOverview, Converter={StaticResource InverseBoolToVisibility}}" />
-                        <Button Content="{Binding Labels.Settings}" ToolTip="{Binding Labels.SettingsTip}" Command="{Binding SettingsCommand}" Style="{StaticResource FooterButton}" />
-                        <Button Content="{Binding Labels.Refresh}" ToolTip="F5" Command="{Binding RefreshCommand}" Style="{StaticResource FooterPrimaryButton}" />
-                        <Button x:Name="FullScreenButton" Content="⛶" ToolTip="{Binding Labels.FullScreenTip}" Click="OnToggleFullScreen" Style="{StaticResource FooterButton}" Padding="16,9" />
-                        <Button Content="{Binding Labels.ExitText}" Command="{Binding ExitCommand}" Style="{StaticResource FooterButton}" />
-                    </StackPanel>
-                </Grid>
             </Grid>
+        </Viewbox>
+
+        <!-- ===================== Announcement card (modal): over the whole window, part of it (not a dialog) ===================== -->
+        <Grid DataContext="{Binding Announcements}" Visibility="{Binding HasModal, Converter={StaticResource BoolToVisibility}}"
+              AutomationProperties.Name="{Binding Modal.Title}" AutomationProperties.LiveSetting="Assertive">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Opacity" Value="0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasModal}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.25" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <!-- Dims the whole window and catches the clicks behind the card -->
+            <Border Background="{StaticResource BackdropBrush}" />
+
+            <Viewbox Stretch="Uniform">
+                <Grid Width="1920" Height="1080">
+                    <Border Width="1180" MaxHeight="820" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Background="{StaticResource CardBrush}" CornerRadius="14">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="60" ShadowDepth="14" Direction="270" Opacity="0.35" Color="#0D2554" />
+                        </Border.Effect>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Severity band -->
+                            <Border CornerRadius="14,14,0,0" Background="{Binding Modal.Severity, Converter={StaticResource SeverityToBrush}, ConverterParameter=accent}" />
+
+                            <!-- Icon, caption and pages -->
+                            <Grid Grid.Row="1" Margin="56,40,56,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="64" Height="64" CornerRadius="32" VerticalAlignment="Center"
+                                        Background="{Binding Modal.Severity, Converter={StaticResource SeverityToBrush}, ConverterParameter=accent}">
+                                    <TextBlock Text="{Binding Modal.Severity, Converter={StaticResource SeverityToGlyph}}" FontFamily="{StaticResource IconFont}" FontSize="32"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{Binding Modal.Severity, Converter={StaticResource SeverityToBrush}, ConverterParameter=onaccent}" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="{Binding Modal.Caption}" Margin="22,0,0,0" VerticalAlignment="Center"
+                                           FontSize="20" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                            Visibility="{Binding HasManyModals, Converter={StaticResource BoolToVisibility}}">
+                                    <Button Command="{Binding PreviousModalCommand}" Content="&#xE76B;" FontFamily="{StaticResource IconFont}" FontSize="16" Padding="12,8"
+                                            AutomationProperties.Name="Anterior" />
+                                    <TextBlock Text="{Binding ModalPage}" FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}"
+                                               VerticalAlignment="Center" Margin="16,0" />
+                                    <Button Command="{Binding NextModalCommand}" Content="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="16" Padding="12,8"
+                                            AutomationProperties.Name="Siguiente" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Title -->
+                            <TextBlock Grid.Row="2" Margin="56,28,56,0" Text="{Binding Modal.Title}" TextWrapping="Wrap"
+                                       FontFamily="{StaticResource DisplayFont}" FontSize="48" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+
+                            <!-- Message (scrolls if it is long) -->
+                            <ScrollViewer Grid.Row="3" Margin="56,20,56,0" VerticalScrollBarVisibility="Auto" Focusable="False">
+                                <TextBlock Text="{Binding Modal.Message}" TextWrapping="Wrap" FontSize="28" LineHeight="42"
+                                           Foreground="{StaticResource InkBrush}" />
+                            </ScrollViewer>
+
+                            <!-- Until when, and close -->
+                            <Grid Grid.Row="4" Margin="56,36,56,44">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Modal.UntilText}" FontSize="19" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="{Binding Modal.DismissText}" Command="{Binding DismissModalCommand}" Style="{StaticResource PrimaryButton}"
+                                        FontSize="21" Padding="40,12" MinWidth="200"
+                                        Visibility="{Binding Modal.CanDismiss, Converter={StaticResource BoolToVisibility}}" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Viewbox>
         </Grid>
-    </Viewbox>
+    </Grid>
 </Window>

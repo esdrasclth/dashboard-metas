@@ -70,6 +70,8 @@ Friend NotInheritable Class FakeRepository
     Public Property Failing As New HashSet(Of ProductionSource)()
     Public Property Opened As Integer
     Public Property QueryOrder As New List(Of ProductionSource)()
+    Public Property FloatItems As New List(Of FloatItem)()
+    Public Property FloatClassifyFrom As Date?
 
     Public ReadOnly Property IsDemo As Boolean = True Implements IProductionRepository.IsDemo
     Public ReadOnly Property SourceDescription As String = "fake" Implements IProductionRepository.SourceDescription
@@ -96,6 +98,12 @@ Friend NotInheritable Class FakeRepository
             If Not _owner.Rows.TryGetValue(source, list) Then list = New List(Of DailyProduction)()
             Return Task.FromResult(Of IReadOnlyList(Of DailyProduction))(list)
         End Function
+        Public Function GetFloatAsync(classifyFrom As Date, cancellationToken As CancellationToken) As Task(Of IReadOnlyList(Of FloatItem)) Implements IProductionSession.GetFloatAsync
+            _owner.QueryOrder.Add(ProductionSource.Float)
+            _owner.FloatClassifyFrom = classifyFrom
+            If _owner.Failing.Contains(ProductionSource.Float) Then Throw New InvalidOperationException("SQL0204 simulado")
+            Return Task.FromResult(Of IReadOnlyList(Of FloatItem))(_owner.FloatItems)
+        End Function
         Public Function DisposeAsync() As ValueTask Implements IAsyncDisposable.DisposeAsync
             Return ValueTask.CompletedTask
         End Function
@@ -106,5 +114,9 @@ End Class
 Friend Module Make
     Public Function Row(area As String, d As Date, value As Decimal, Optional pieces As Decimal = 10D, Optional styles As Integer = 2) As DailyProduction
         Return New DailyProduction With {.Area = area, .Date = d, .Value = value, .Pieces = pieces, .Styles = styles}
+    End Function
+
+    Public Function Float(status As String, style As String, line As String, pieces As Decimal, value As Decimal, Optional orders As Integer = 1) As FloatItem
+        Return New FloatItem With {.Status = status, .Style = style, .ProductLine = line, .Pieces = pieces, .Value = value, .Orders = orders}
     End Function
 End Module

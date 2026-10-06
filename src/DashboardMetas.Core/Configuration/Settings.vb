@@ -48,6 +48,20 @@ Namespace Configuration
         ''' <summary>DCTXF.TXTXID of a confirmed shipment.</summary>
         Public Property ShipmentTransaction As String = "CS"
 
+        ''' <summary>
+        ''' F4801.WASRST of the custom float, separated by commas (same as avanceMeta.vbs). Read from the
+        ''' stations library, where avanceMeta.vbs reads F4801 and F58C3120.
+        ''' </summary>
+        Public Property FloatStatuses As String = "Y1,Y2,Y3,Y5"
+
+        Public Const MaxFloatStatuses As Integer = 12
+
+        ''' <summary>The float statuses, trimmed, upper case and without repeats, in the configured order.</summary>
+        Public Function FloatStatusList() As IReadOnlyList(Of String)
+            Return If(FloatStatuses, String.Empty).Split({","c, ";"c}, StringSplitOptions.RemoveEmptyEntries Or StringSplitOptions.TrimEntries).
+                Select(Function(s) s.ToUpperInvariant()).Distinct(StringComparer.Ordinal).ToList()
+        End Function
+
         ''' <summary>Divisor of the SRTL02/03/05/07 quantities (1 = as they come, like the Access version).</summary>
         Public Property StationsQuantityDivisor As Decimal = 1D
 
@@ -80,6 +94,10 @@ Namespace Configuration
             Next
             If String.IsNullOrWhiteSpace(PriceType) OrElse Not CodePattern.IsMatch(PriceType) Then errors.Add("El tipo de precio solo puede tener letras y números.")
             If String.IsNullOrWhiteSpace(ShipmentTransaction) OrElse Not CodePattern.IsMatch(ShipmentTransaction) Then errors.Add("La transacción de embarque solo puede tener letras y números.")
+            Dim statuses = FloatStatusList()
+            If statuses.Count = 0 OrElse statuses.Count > MaxFloatStatuses OrElse statuses.Any(Function(s) s.Length > 2 OrElse Not CodePattern.IsMatch(s)) Then
+                errors.Add($"Los estatus del Float deben ser de 1 a {MaxFloatStatuses} códigos de 1 o 2 letras o números, separados por comas (ej. Y1,Y2,Y3,Y5).")
+            End If
             If StationsQuantityDivisor <= 0D OrElse PriceDivisor <= 0D Then errors.Add("Los divisores deben ser mayores que 0.")
             If CommandTimeoutSeconds < 1 Then errors.Add("El tiempo de espera de consulta debe ser mayor que 0.")
             Return errors
@@ -126,6 +144,103 @@ Namespace Configuration
         End Function
     End Class
 
+    ''' <summary>Remote announcements ("Announcements" section).</summary>
+    Public NotInheritable Class AnnouncementSettings
+        Public Const SectionName As String = "Announcements"
+        ''' <summary>The panel's control file. In code too, so a PC with an old appsettings.json still gets announcements.</summary>
+        Public Const DefaultFeedUrl As String = "https://dashboard-metas-anuncios.vercel.app/control.json"
+        Public Const MinPollSeconds As Integer = 30
+        Public Const MaxPollSeconds As Integer = 3600
+
+        Public Property Enabled As Boolean = True
+        ''' <summary>
+        ''' HTTPS address of the signed control file (e.g. https://…/control.json), or a file path / network share
+        ''' (\\servidor\carpeta\control.json). Empty = announcements off.
+        ''' </summary>
+        Public Property FeedUrl As String = DefaultFeedUrl
+        ''' <summary>Seconds between checks of the control file.</summary>
+        Public Property PollSeconds As Integer = 60
+
+        Public Function EffectivePollSeconds() As Integer
+            Return Math.Clamp(PollSeconds, MinPollSeconds, MaxPollSeconds)
+        End Function
+
+        Public ReadOnly Property IsConfigured As Boolean
+            Get
+                Return Enabled AndAlso Not String.IsNullOrWhiteSpace(FeedUrl)
+            End Get
+        End Property
+
+        ''' <summary>Validation errors in Spanish (empty list = valid). An empty address is valid (= off).</summary>
+        Public Function Validate() As IReadOnlyList(Of String)
+            Dim errors As New List(Of String)()
+            Dim url = If(FeedUrl, String.Empty).Trim()
+            If url.Length > 0 Then
+                Dim uri As Uri = Nothing
+                If Not Uri.TryCreate(url, UriKind.Absolute, uri) Then
+                    errors.Add("La dirección de anuncios debe ser https://… o una ruta de archivo (\\servidor\carpeta\control.json).")
+                ElseIf uri.Scheme = Uri.UriSchemeHttp AndAlso Not uri.IsLoopback Then
+                    errors.Add("La dirección de anuncios debe usar https:// (http solo se acepta en esta misma PC, para pruebas).")
+                ElseIf uri.Scheme <> Uri.UriSchemeHttps AndAlso uri.Scheme <> Uri.UriSchemeHttp AndAlso uri.Scheme <> Uri.UriSchemeFile Then
+                    errors.Add("La dirección de anuncios debe ser https://… o una ruta de archivo.")
+                End If
+            End If
+            If PollSeconds < MinPollSeconds OrElse PollSeconds > MaxPollSeconds Then
+                errors.Add($"La consulta de anuncios debe ser de {MinPollSeconds} a {MaxPollSeconds} segundos.")
+            End If
+            Return errors
+        End Function
+    End Class
+
+    ''' <summary>Screen status reported to the announcements panel ("Status" section).</summary>
+    Public NotInheritable Class StatusSettings
+        Public Const SectionName As String = "Status"
+        Public Const MinIntervalSeconds As Integer = 60
+        Public Const MaxIntervalSeconds As Integer = 3600
+
+        ''' <summary>True = this screen reports its status (and what it showed) to the panel.</summary>
+        Public Property Enabled As Boolean = True
+        ''' <summary>HTTPS address of the panel's heartbeat (…/api/heartbeat). Empty = off.</summary>
+        Public Property Url As String = DefaultUrl
+
+        Public Const DefaultUrl As String = "https://dashboard-metas-anuncios.vercel.app/api/heartbeat"
+        ''' <summary>Seconds between reports when nothing changes (a change is reported within a minute).</summary>
+        Public Property IntervalSeconds As Integer = 300
+
+        Public Function EffectiveIntervalSeconds() As Integer
+            Return Math.Clamp(IntervalSeconds, MinIntervalSeconds, MaxIntervalSeconds)
+        End Function
+
+        Public ReadOnly Property IsConfigured As Boolean
+            Get
+                Return Enabled AndAlso Not String.IsNullOrWhiteSpace(Url)
+            End Get
+        End Property
+
+        ''' <summary>Validation errors in Spanish (empty = valid). An empty address is valid (= off).</summary>
+        Public Function Validate() As IReadOnlyList(Of String)
+            Dim errors As New List(Of String)()
+            Dim value = If(Url, String.Empty).Trim()
+            If value.Length > 0 Then
+                Dim uri As Uri = Nothing
+                If Not Uri.TryCreate(value, UriKind.Absolute, uri) OrElse Not (uri.Scheme = Uri.UriSchemeHttps OrElse (uri.Scheme = Uri.UriSchemeHttp AndAlso uri.IsLoopback)) Then
+                    errors.Add("La dirección del panel debe ser https://… (http solo en esta misma PC, para pruebas).")
+                End If
+            End If
+            If IntervalSeconds < MinIntervalSeconds OrElse IntervalSeconds > MaxIntervalSeconds Then
+                errors.Add($"El reporte al panel debe ser cada {MinIntervalSeconds} a {MaxIntervalSeconds} segundos.")
+            End If
+            Return errors
+        End Function
+    End Class
+
+    ''' <summary>Automatic updates ("Update" section). They arrive with the replies to the screen-status reports.</summary>
+    Public NotInheritable Class UpdateSettings
+        Public Const SectionName As String = "Update"
+        ''' <summary>True = install the versions published in the panel (signed with the publisher's key).</summary>
+        Public Property Enabled As Boolean = True
+    End Class
+
     ''' <summary>Demo mode ("Demo" section). Also enabled with the --demo argument.</summary>
     Public NotInheritable Class DemoSettings
         Public Const SectionName As String = "Demo"
@@ -136,6 +251,8 @@ Namespace Configuration
         Public Property FailingSource As String = String.Empty
         ''' <summary>"HH:mm" or "yyyy-MM-dd HH:mm" = in demo the clock starts at this time (to see the pace at any hour). Empty = real time.</summary>
         Public Property SimulatedTime As String = String.Empty
+        ''' <summary>True = in demo the announcements come from invented, locally signed examples (no address needed).</summary>
+        Public Property SimulateAnnouncements As Boolean
     End Class
 
 End Namespace

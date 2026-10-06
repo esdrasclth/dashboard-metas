@@ -4,6 +4,7 @@ Imports System.IO
 Imports System.Runtime.InteropServices
 Imports System.Security.Principal
 Imports System.Text
+Imports DashboardMetas.Core.Announcements
 Imports DashboardMetas.Core.Configuration
 Imports Microsoft.Extensions.Options
 Imports Microsoft.Win32
@@ -43,8 +44,15 @@ Namespace Services
         Private ReadOnly _dashboard As IOptionsMonitor(Of DashboardSettings)
         Private ReadOnly _mode As AppMode
         Private ReadOnly _paths As AppPaths
+        Private ReadOnly _announcements As AnnouncementService
+        Private ReadOnly _reporter As ScreenReporter
+        Private ReadOnly _updates As UpdateService
 
-        Public Sub New(jde As IOptionsMonitor(Of JdeSettings), dashboard As IOptionsMonitor(Of DashboardSettings), mode As AppMode, paths As AppPaths)
+        Public Sub New(jde As IOptionsMonitor(Of JdeSettings), dashboard As IOptionsMonitor(Of DashboardSettings), mode As AppMode, paths As AppPaths,
+                       announcements As AnnouncementService, reporter As ScreenReporter, updates As UpdateService)
+            _updates = updates
+            _announcements = announcements
+            _reporter = reporter
             _jde = jde
             _dashboard = dashboard
             _mode = mode
@@ -103,10 +111,42 @@ Namespace Services
                                          If(ibmDrivers.Count = 0, If(_mode.IsDemo, DiagnosticLevel.Warning, DiagnosticLevel.Error), DiagnosticLevel.Ok)))
             items.Add(New DiagnosticItem(odbc, "Usuario / planta", $"{settings.User} / {settings.Branch.Trim()} (""{JdeSettings.PadBranch(settings.Branch)}"")"))
             items.Add(New DiagnosticItem(odbc, "Inicio de sesión", If(settings.UseDriverSignOn, "El del driver IBM i Access (sin contraseña en la app)", "Contraseña guardada con DPAPI")))
-            items.Add(New DiagnosticItem(odbc, "Bibliotecas", $"Y1: {settings.AssemblyLibrary} · Estaciones: {settings.StationsLibrary} · Precios: {settings.PricesLibrary} · dcLINK: {settings.DcLinkLibrary}"))
-            items.Add(New DiagnosticItem(odbc, "Parámetros", $"Precio {settings.PriceType} · operación {settings.AssemblyOperation} · transacción {settings.ShipmentTransaction} · divisores {settings.StationsQuantityDivisor}/{settings.PriceDivisor}"))
+            items.Add(New DiagnosticItem(odbc, "Bibliotecas", $"Y1: {settings.AssemblyLibrary} · Estaciones y Float: {settings.StationsLibrary} · Precios: {settings.PricesLibrary} · dcLINK: {settings.DcLinkLibrary}"))
+            items.Add(New DiagnosticItem(odbc, "Parámetros", $"Precio {settings.PriceType} · operación {settings.AssemblyOperation} · transacción {settings.ShipmentTransaction} · estatus Float {String.Join(",", settings.FloatStatusList())} · divisores {settings.StationsQuantityDivisor}/{settings.PriceDivisor}"))
             Dim errors = settings.Validate()
             If errors.Count > 0 Then items.Add(New DiagnosticItem(odbc, "Configuración", String.Join(" ", errors), DiagnosticLevel.Error))
+
+            ' ---- Anuncios ----
+            Const ann = "Anuncios"
+            Dim status = _announcements.Status()
+            Dim audience = _announcements.Audience()
+            items.Add(New DiagnosticItem(ann, "Dirección", If(status.IsConfigured, status.Source, "(sin configurar: anuncios apagados)"),
+                                         If(status.IsConfigured, DiagnosticLevel.Ok, DiagnosticLevel.Info)))
+            If status.IsConfigured Then
+                items.Add(New DiagnosticItem(ann, "Última consulta", If(status.LastCheck.HasValue, status.LastCheck.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), "todavía no"),
+                                             If(String.IsNullOrEmpty(status.LastError), DiagnosticLevel.Ok, DiagnosticLevel.Error)))
+                If Not String.IsNullOrEmpty(status.LastError) Then items.Add(New DiagnosticItem(ann, "Error", status.LastError, DiagnosticLevel.Error))
+            End If
+            items.Add(New DiagnosticItem(ann, "Archivo", If(status.Version = 0, "ninguno recibido",
+                $"versión {status.Version} · {status.InFile} anuncio(s) · {_announcements.Active().Count} activo(s) aquí · {status.Dismissed} cerrado(s) · clave {status.KeyId}")))
+            items.Add(New DiagnosticItem(ann, "Claves aceptadas", String.Join(", ", AnnouncementKeys.Trusted().Keys)))
+            items.Add(New DiagnosticItem(ann, "Esta PC", $"equipo:{audience.MachineName} · planta:{audience.Branch}"))
+
+            ' ---- Panel (screen status) ----
+            Const panel = "Panel remoto"
+            Dim report = _reporter.Status()
+            items.Add(New DiagnosticItem(panel, "Id de esta pantalla", report.DeviceId))
+            items.Add(New DiagnosticItem(panel, "Reporte", If(report.IsConfigured, report.Url, "(apagado)"), If(report.IsConfigured, DiagnosticLevel.Ok, DiagnosticLevel.Info)))
+            If report.IsConfigured Then
+                items.Add(New DiagnosticItem(panel, "Último reporte correcto",
+                    If(report.LastSuccess.HasValue, report.LastSuccess.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), "todavía no"),
+                    If(String.IsNullOrEmpty(report.LastError), DiagnosticLevel.Ok, DiagnosticLevel.Error)))
+                If Not String.IsNullOrEmpty(report.LastError) Then items.Add(New DiagnosticItem(panel, "Error", report.LastError, DiagnosticLevel.Error))
+            End If
+            Dim update = _updates.Status()
+            items.Add(New DiagnosticItem(panel, "Actualizaciones", $"{If(update.Enabled, "automáticas", "apagadas")} · versión {UpdateService.CurrentVersion.ToString(3)} · {update.State}{If(String.IsNullOrEmpty(update.Version), "", " " & update.Version)}{If(String.IsNullOrEmpty(update.Detail), "", " · " & update.Detail)}",
+                                         If(update.State = "error" OrElse update.State = "revertida", DiagnosticLevel.Error, DiagnosticLevel.Ok)))
+            items.Add(New DiagnosticItem(panel, "Carpeta de la app", If(IO.Path.GetDirectoryName(Environment.ProcessPath), "")))
 
             Return items
         End Function

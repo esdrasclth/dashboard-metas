@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Anuncios · Dashboard Metas</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <!-- ============ Login ============ -->
+  <main id="login" class="login" hidden>
+    <form id="login-form" class="login-card" autocomplete="on">
+      <div class="brand brand-dark">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0D2554"/><path d="M9 21V11l7 4.5L23 11v10" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div>
+          <div class="brand-title">Anuncios</div>
+          <div class="brand-sub">Dashboard Metas</div>
+        </div>
+      </div>
+      <p class="login-text">Redacta y publica los anuncios que aparecen en las pantallas de la planta.</p>
+      <label class="field">
+        <span class="label">Contraseña</span>
+        <input id="login-password" type="password" name="password" autocomplete="current-password" required autofocus>
+      </label>
+      <p id="login-error" class="form-error" role="alert" hidden></p>
+      <button class="btn btn-primary btn-block" type="submit" id="login-button">Entrar</button>
+    </form>
+  </main>
+
+  <!-- ============ Panel ============ -->
+  <div id="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#fff"/><path d="M9 21V11l7 4.5L23 11v10" fill="none" stroke="#0D2554" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div>
+          <div class="brand-title">Anuncios</div>
+          <div class="brand-sub">Dashboard Metas</div>
+        </div>
+      </div>
+      <nav class="views" role="tablist" aria-label="Secciones">
+        <button role="tab" class="view-tab" data-view="anuncios" aria-selected="true">Anuncios</button>
+        <button role="tab" class="view-tab" data-view="pantallas" aria-selected="false">Pantallas <span id="screens-alert" class="alert-dot" hidden></span></button>
+        <button role="tab" class="view-tab" data-view="versiones" aria-selected="false">Versiones</button>
+      </nav>
+      <div class="topbar-actions">
+        <button id="key-chip" class="chip chip-key" type="button"></button>
+        <button id="logout" class="btn btn-ghost-light" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="page" id="view-anuncios">
+      <!-- Publication status -->
+      <section class="card status" aria-labelledby="status-title">
+        <div class="status-main">
+          <h1 id="status-title" class="status-title">Publicación</h1>
+          <p id="status-published" class="status-line">Cargando…</p>
+          <div class="feed-url">
+            <span class="muted">Dirección para la app:</span>
+            <code id="feed-url"></code>
+            <button id="copy-url" class="btn btn-small" type="button">Copiar</button>
+          </div>
+        </div>
+        <div class="status-actions">
+          <span id="draft-badge" class="badge badge-warn" hidden></span>
+          <button id="discard" class="btn" type="button" hidden>Descartar cambios</button>
+          <button id="publish" class="btn btn-primary" type="button">Publicar</button>
+        </div>
+      </section>
+
+      <div class="layout">
+        <!-- List -->
+        <section class="card list-card" aria-labelledby="list-title">
+          <div class="section-head">
+            <h2 id="list-title">Anuncios</h2>
+            <button id="new" class="btn btn-primary btn-small" type="button">+ Nuevo anuncio</button>
+          </div>
+          <div class="tabs" role="tablist" aria-label="Filtrar anuncios">
+            <button role="tab" class="tab" data-filter="todos" aria-selected="true">Todos</button>
+            <button role="tab" class="tab" data-filter="activo" aria-selected="false">Activos</button>
+            <button role="tab" class="tab" data-filter="programado" aria-selected="false">Programados</button>
+            <button role="tab" class="tab" data-filter="vencido" aria-selected="false">Vencidos</button>
+          </div>
+          <ul id="list" class="list"></ul>
+          <div id="list-empty" class="empty" hidden></div>
+          <div class="list-foot">
+            <span id="list-count" class="muted"></span>
+            <button id="remove-expired" class="btn btn-small" type="button" hidden>Quitar vencidos</button>
+          </div>
+        </section>
+
+        <!-- Editor + preview -->
+        <section class="card editor-card" aria-labelledby="editor-title">
+          <div id="editor-empty" class="empty empty-editor">
+            <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="10" width="36" height="26" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M14 20h20M14 27h12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            <p>Elige un anuncio de la lista o crea uno nuevo.</p>
+          </div>
+
+          <form id="editor" class="editor" hidden novalidate>
+            <div class="section-head">
+              <h2 id="editor-title">Nuevo anuncio</h2>
+              <span id="editor-state" class="badge"></span>
+            </div>
+
+            <label class="field">
+              <span class="label">Título <span class="counter" data-for="title"></span></span>
+              <input id="f-title" name="title" maxlength="120" required placeholder="Ej. Inventario físico este sábado">
+            </label>
+            <label class="field">
+              <span class="label">Mensaje <span class="counter" data-for="message"></span></span>
+              <textarea id="f-message" name="message" rows="5" maxlength="1500" required placeholder="Lo que deben saber. Los saltos de línea se respetan."></textarea>
+            </label>
+
+            <div class="row">
+              <fieldset class="field">
+                <legend class="label">Urgencia</legend>
+                <div class="segmented" id="f-severity">
+                  <label><input type="radio" name="severity" value="Info"><span><i class="dot dot-info"></i>Anuncio</span></label>
+                  <label><input type="radio" name="severity" value="Warning"><span><i class="dot dot-warning"></i>Aviso</span></label>
+                  <label><input type="radio" name="severity" value="Critical"><span><i class="dot dot-critical"></i>Urgente</span></label>
+                </div>
+              </fieldset>
+              <fieldset class="field">
+                <legend class="label">Cómo se muestra</legend>
+                <div class="segmented" id="f-display">
+                  <label><input type="radio" name="display" value="Modal"><span>Tarjeta</span></label>
+                  <label><input type="radio" name="display" value="Banner"><span>Franja</span></label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="row">
+              <label class="field">
+                <span class="label">Desde</span>
+                <input id="f-starts" name="startsAt" type="datetime-local">
+              </label>
+              <label class="field">
+                <span class="label">Hasta</span>
+                <input id="f-ends" name="endsAt" type="datetime-local" required>
+              </label>
+            </div>
+            <div class="quick" aria-label="Duración rápida">
+              <span class="muted">Hasta:</span>
+              <button type="button" class="btn btn-small" data-until="shift">fin del turno (16:10)</button>
+              <button type="button" class="btn btn-small" data-until="day">mañana a esta hora</button>
+              <button type="button" class="btn btn-small" data-until="week">una semana</button>
+            </div>
+            <p class="hint" id="tz-hint"></p>
+
+            <fieldset class="field">
+              <legend class="label">Pantallas</legend>
+              <div class="segmented" id="f-audience">
+                <label><input type="radio" name="audience" value="all"><span>Todas</span></label>
+                <label><input type="radio" name="audience" value="some"><span>Solo algunas</span></label>
+              </div>
+              <div id="targets-box" class="targets" hidden>
+                <div id="targets" class="chips"></div>
+                <input id="f-target" placeholder="planta:027 o equipo:NOMBRE-PC y Enter" aria-label="Agregar pantalla">
+                <p class="hint">El nombre de cada PC aparece en Dashboard Metas › Configuración › Anuncios.</p>
+              </div>
+            </fieldset>
+
+            <div class="checks">
+              <label class="check"><input id="f-dismissible" type="checkbox"> Se puede cerrar con «Entendido»</label>
+              <label class="check"><input id="f-sound" type="checkbox"> Sonido al aparecer</label>
+            </div>
+
+            <details class="advanced">
+              <summary>Inglés y opciones avanzadas</summary>
+              <label class="field">
+                <span class="label">Título en inglés <span class="optional">opcional</span></span>
+                <input id="f-title-en" maxlength="120">
+              </label>
+              <label class="field">
+                <span class="label">Mensaje en inglés <span class="optional">opcional</span></span>
+                <textarea id="f-message-en" rows="3" maxlength="1500"></textarea>
+              </label>
+              <label class="field">
+                <span class="label">Id <span class="optional">identifica el anuncio en cada PC</span></span>
+                <input id="f-id" maxlength="64" spellcheck="false">
+              </label>
+              <label id="renew-box" class="check" hidden>
+                <input id="f-renew" type="checkbox"> Volver a mostrarlo en las PCs donde ya lo cerraron (nuevo id)
+              </label>
+            </details>
+
+            <ul id="editor-errors" class="errors" role="alert" hidden></ul>
+
+            <div class="editor-actions">
+              <button id="delete" class="btn btn-danger-ghost" type="button" hidden>Eliminar</button>
+              <span class="spacer"></span>
+              <button id="cancel" class="btn" type="button">Cancelar</button>
+              <button id="save" class="btn btn-primary" type="submit">Guardar en el borrador</button>
+            </div>
+
+            <!-- Preview -->
+            <div class="preview-head">
+              <h3>Vista previa</h3>
+              <div class="segmented segmented-small" id="preview-lang">
+                <label><input type="radio" name="previewLang" value="es" checked><span>ES</span></label>
+                <label><input type="radio" name="previewLang" value="en"><span>EN</span></label>
+              </div>
+            </div>
+            <div class="screen" id="preview" aria-label="Vista previa en la pantalla">
+              <div class="screen-dashboard" aria-hidden="true">
+                <div class="sk sk-title"></div>
+                <div class="screen-banner" id="pv-banner" hidden>
+                  <i class="pv-stripe"></i><span class="pv-icon"></span>
+                  <span class="pv-banner-text"><b id="pv-banner-title"></b> <span id="pv-banner-message"></span></span>
+                  <span class="pv-banner-until" id="pv-banner-until"></span>
+                </div>
+                <div class="sk-row"><div class="sk sk-navy"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+                <div class="sk sk-chart"></div>
+                <div class="sk-row"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+              </div>
+              <div class="screen-modal" id="pv-modal" hidden>
+                <div class="pv-card">
+                  <i class="pv-band"></i>
+                  <div class="pv-head"><span class="pv-icon pv-icon-round"></span><span class="pv-caption" id="pv-caption"></span></div>
+                  <div class="pv-title" id="pv-title"></div>
+                  <div class="pv-message" id="pv-message"></div>
+                  <div class="pv-foot"><span id="pv-until"></span><span class="pv-button" id="pv-button"></span></div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <!-- History -->
+      <section class="card" aria-labelledby="history-title">
+        <details id="history-box">
+          <summary class="section-head"><h2 id="history-title">Historial de publicaciones</h2></summary>
+          <ul id="history" class="history"></ul>
+        </details>
+      </section>
+    </main>
+
+    <!-- ============ Versions ============ -->
+    <main class="page" id="view-versiones" hidden>
+      <section class="card status" aria-labelledby="release-title">
+        <div class="status-main">
+          <h1 id="release-title" class="status-title">Versiones</h1>
+          <p class="status-line" id="release-summary">Cargando…</p>
+          <p id="release-notes" class="release-notes" hidden></p>
+        </div>
+        <div class="status-actions" id="release-actions" hidden>
+          <button id="release-pause" class="btn" type="button"></button>
+          <button id="release-install" class="btn" type="button"></button>
+          <button id="release-targets" class="btn" type="button">Destinos…</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="rollout-title">
+        <div class="section-head">
+          <h2 id="rollout-title">Pantallas</h2>
+          <span class="muted" id="rollout-count"></span>
+        </div>
+        <ul id="rollout" class="rollout"></ul>
+      </section>
+
+      <div class="layout layout-even">
+        <section class="card" aria-labelledby="publish-how">
+          <h2 id="publish-how">Publicar una versión nueva</h2>
+          <ol class="steps">
+            <li>Sube el número en <code>Directory.Build.props</code> (por ejemplo 1.2.0) y corre <code>publicar.cmd</code>.</li>
+            <li>En <code>web\anuncios</code>: <code>npm run publicar-version -- --notas "Qué cambió"</code>.</li>
+            <li>Para probar primero en una TV: agrega <code>--destinos "equipo:NOMBRE-PC"</code>; cuando funcione, cambia los destinos aquí a todas.</li>
+          </ol>
+          <p class="hint">Se instala fuera de turno (cuando ninguna área está en su horario); <code>--ahora</code> la instala en cuanto la descarga. Si la versión nueva no abre bien en una TV, esa TV vuelve sola a la anterior.</p>
+        </section>
+        <section class="card" aria-labelledby="release-history-title">
+          <h2 id="release-history-title">Publicaciones anteriores</h2>
+          <ul id="release-history" class="history"></ul>
+        </section>
+      </div>
+    </main>
+
+    <!-- ============ Screens ============ -->
+    <main class="page" id="view-pantallas" hidden>
+      <section class="card status" aria-labelledby="screens-title">
+        <div class="status-main">
+          <h1 id="screens-title" class="status-title">Pantallas</h1>
+          <p class="status-line" id="screens-summary">Cargando…</p>
+          <div class="counters" id="screens-counters"></div>
+        </div>
+        <div class="status-actions">
+          <span class="muted" id="screens-updated"></span>
+          <button id="screens-refresh" class="btn" type="button">Actualizar</button>
+        </div>
+      </section>
+      <p id="screens-missing" class="notice" hidden>
+        Falta la base de datos de pantallas: en Vercel, proyecto <b>dashboard-metas-anuncios</b> › <b>Storage</b> › conectar
+        <b>Upstash for Redis</b>. Mientras tanto las pantallas no pueden reportar.
+      </p>
+      <div id="screens" class="screens"></div>
+      <div id="screens-empty" class="card empty" hidden>
+        Todavía ninguna pantalla ha reportado. Las que tengan la versión nueva de Dashboard Metas aparecen aquí a los pocos
+        segundos de abrirse (Configuración › Anuncios › «Estado de esta pantalla en el panel»).
+      </div>
+    </main>
+  </div>
+
+  <!-- ============ Key dialog ============ -->
+  <dialog id="key-dialog" class="dialog" aria-labelledby="key-title">
+    <form method="dialog" class="dialog-body">
+      <h2 id="key-title">Clave de firma</h2>
+      <p>Las pantallas solo aceptan anuncios firmados con tu clave privada (<code>clave-privada-anuncios.pem</code>, en
+        <code>Documentos\DashboardMetas-Anuncios</code>). La firma se hace aquí, en tu navegador: <b>la clave nunca se envía al servidor</b>.</p>
+      <p id="key-status" class="key-status"></p>
+      <label class="field">
+        <span class="label">Archivo de la clave</span>
+        <input id="key-file" type="file" accept=".pem,application/x-pem-file,text/plain">
+      </label>
+      <label class="check"><input id="key-remember" type="checkbox" checked> Recordarla en este navegador (guardada sin poder copiarse)</label>
+      <p id="key-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="key-forget" class="btn btn-danger-ghost" type="button">Olvidar la clave</button>
+        <span class="spacer"></span>
+        <button class="btn" value="close">Cerrar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ Confirm dialog ============ -->
+  <dialog id="confirm-dialog" class="dialog dialog-small" aria-labelledby="confirm-title">
+    <form method="dialog" class="dialog-body">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text"></p>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button class="btn" value="no">Cancelar</button>
+        <button id="confirm-yes" class="btn btn-primary" value="yes"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ History viewer ============ -->
+  <dialog id="version-dialog" class="dialog" aria-labelledby="version-title">
+    <form method="dialog" class="dialog-body">
+      <h2 id="version-title"></h2>
+      <ul id="version-list" class="version-list"></ul>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button class="btn" value="close">Cerrar</button>
+        <button id="version-restore" class="btn btn-primary" value="restore">Usar como borrador</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ Release targets ============ -->
+  <dialog id="targets-dialog" class="dialog dialog-small" aria-labelledby="targets-title">
+    <form method="dialog" class="dialog-body" id="targets-form">
+      <h2 id="targets-title">¿A qué pantallas va?</h2>
+      <p class="hint">Vacío = todas. Para probar primero en una sola: <code>equipo:NOMBRE-PC</code>. Separa con comas.</p>
+      <label class="field">
+        <span class="label">Destinos</span>
+        <input id="targets-input" placeholder="equipo:TV-EMBARQUES, planta:027">
+      </label>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button id="targets-cancel" class="btn" type="button">Cancelar</button>
+        <button class="btn btn-primary" value="yes">Firmar y aplicar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ Screen detail ============ -->
+  <dialog id="screen-dialog" class="dialog dialog-wide" aria-labelledby="screen-title">
+    <form method="dialog" class="dialog-body">
+      <h2 id="screen-title"></h2>
+      <dl id="screen-facts" class="facts"></dl>
+      <h3>Historial</h3>
+      <ul id="screen-events" class="events"></ul>
+      <div class="dialog-actions">
+        <button id="screen-remove" class="btn btn-danger-ghost" type="button">Quitar del panel</button>
+        <span class="spacer"></span>
+        <button id="screen-rename" class="btn" type="button">Cambiar nombre</button>
+        <button class="btn btn-primary" value="close">Cerrar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ Rename ============ -->
+  <dialog id="rename-dialog" class="dialog dialog-small" aria-labelledby="rename-title">
+    <form method="dialog" class="dialog-body" id="rename-form">
+      <h2 id="rename-title">Nombre de la pantalla</h2>
+      <label class="field">
+        <span class="label">Nombre <span class="optional">vacío = el nombre de la PC</span></span>
+        <input id="rename-input" maxlength="60" placeholder="Ej. TV Embarques">
+      </label>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button id="rename-cancel" class="btn" type="button">Cancelar</button>
+        <button class="btn btn-primary" value="yes">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+</body>
+</html>

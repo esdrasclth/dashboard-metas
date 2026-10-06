@@ -11,3 +11,7 @@ src/DashboardMetas.App/appsettings.empresa.json
 appsettings.empresa.json
 referencia/
 CLAUDE.md
+
+# Announcement signing key: never commit the private key (only the public one goes in AnnouncementKeys.vb)
+*.pem
+clave-privada-anuncios*

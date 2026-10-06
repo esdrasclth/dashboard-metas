@@ -159,8 +159,8 @@ Public Class RefresherTests
         Dim store As New MemoryCredentialStore With {.Saved = "ok"}
         Dim refresher = Build(repo, store, New ScriptedPrompt())
         Dim outcome = Await refresher.RefreshAsync(ProductionSource.Shipments, #09/18/2026#, allowPrompt:=False, Nothing, CancellationToken.None)
-        Assert.Equal(3, outcome.Succeeded)
-        Assert.Equal({ProductionSource.Shipments, ProductionSource.AssemblyDeliveries, ProductionSource.StationActivity}, repo.QueryOrder)
+        Assert.Equal(4, outcome.Succeeded)
+        Assert.Equal({ProductionSource.Shipments, ProductionSource.AssemblyDeliveries, ProductionSource.StationActivity, ProductionSource.Float}, repo.QueryOrder)
         Assert.Equal(1, repo.Opened)
         Assert.Equal(7D, refresher.GetRows("Y7").Single().Value)
         Assert.Equal(Now, refresher.GetStatus(ProductionSource.Shipments).LastSuccess)
@@ -191,7 +191,7 @@ Public Class RefresherTests
         Dim outcome = Await refresher.RefreshAsync(ProductionSource.AssemblyDeliveries, Now.Date, allowPrompt:=False, Nothing, CancellationToken.None)
         Assert.True(outcome.NeedsPassword)
         Assert.Equal(0, prompt.Calls)
-        Assert.Equal(3, outcome.Failed)
+        Assert.Equal(4, outcome.Failed)
         Assert.True(refresher.GetStatus(ProductionSource.Shipments).NeedsPassword)
     End Function
 
@@ -201,7 +201,7 @@ Public Class RefresherTests
         Dim prompt As New ScriptedPrompt("bad", "ok")
         Dim refresher = Build(New FakeRepository(), store, prompt)
         Dim outcome = Await refresher.RefreshAsync(ProductionSource.AssemblyDeliveries, Now.Date, allowPrompt:=True, Nothing, CancellationToken.None)
-        Assert.Equal(3, outcome.Succeeded)
+        Assert.Equal(4, outcome.Succeeded)
         Assert.Equal(2, prompt.Calls)
         Assert.Equal("ok", store.Saved)
         Assert.Equal(1, store.Deleted)
@@ -212,7 +212,7 @@ Public Class RefresherTests
         Dim prompt As New ScriptedPrompt()
         Dim refresher = Build(New FakeRepository(), New MemoryCredentialStore(), prompt, signOn:=True)
         Dim outcome = Await refresher.RefreshAsync(ProductionSource.AssemblyDeliveries, Now.Date, allowPrompt:=False, Nothing, CancellationToken.None)
-        Assert.Equal(3, outcome.Succeeded)
+        Assert.Equal(4, outcome.Succeeded)
         Assert.Equal(0, prompt.Calls)
     End Function
 

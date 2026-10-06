@@ -81,7 +81,50 @@ Namespace Odbc
 
         Public Function GetDailyAsync(source As ProductionSource, fromDate As Date, cancellationToken As CancellationToken) As Task(Of IReadOnlyList(Of DailyProduction)) Implements IProductionSession.GetDailyAsync
             Dim query = JdeQueries.Build(source, _settings, fromDate)
-            Return Task.Run(Of IReadOnlyList(Of DailyProduction))(
+            Return Execute(query, source, cancellationToken,
+                Function(reader)
+                    Dim iArea = reader.GetOrdinal("AREA"), iDate = reader.GetOrdinal("FECHA"), iPieces = reader.GetOrdinal("PIEZAS")
+                    Dim iValue = reader.GetOrdinal("COSTO_TOTAL"), iStyles = reader.GetOrdinal("ESTILOS")
+                    Return Function()
+                               If reader.IsDBNull(iDate) Then Return Nothing
+                               Dim row As New DailyProduction With {
+                                   .Area = JdeValueConverter.ToText(reader.GetValue(iArea)).Trim(),
+                                   .Date = JdeValueConverter.ToDate(reader.GetValue(iDate)),
+                                   .Pieces = JdeValueConverter.ToDecimal(reader.GetValue(iPieces)),
+                                   .Value = JdeValueConverter.ToDecimal(reader.GetValue(iValue)),
+                                   .Styles = JdeValueConverter.ToInt32(reader.GetValue(iStyles))}
+                               Return JdeQueries.Scale(source, row, _settings)
+                           End Function
+                End Function)
+        End Function
+
+        Public Function GetFloatAsync(classifyFrom As Date, cancellationToken As CancellationToken) As Task(Of IReadOnlyList(Of FloatItem)) Implements IProductionSession.GetFloatAsync
+            Dim query = JdeQueries.Float(_settings, classifyFrom)
+            Return Execute(query, ProductionSource.Float, cancellationToken,
+                Function(reader)
+                    Dim iStatus = reader.GetOrdinal("ESTATUS"), iStyle = reader.GetOrdinal("ESTILO"), iLine = reader.GetOrdinal("LINEA")
+                    Dim iPieces = reader.GetOrdinal("PIEZAS"), iValue = reader.GetOrdinal("COSTO_TOTAL"), iOrders = reader.GetOrdinal("ORDENES")
+                    Return Function()
+                               Dim item As New FloatItem With {
+                                   .Status = JdeValueConverter.ToText(reader.GetValue(iStatus)).Trim(),
+                                   .Style = JdeValueConverter.ToText(reader.GetValue(iStyle)).Trim(),
+                                   .ProductLine = JdeValueConverter.ToText(reader.GetValue(iLine)).Trim(),
+                                   .Pieces = JdeValueConverter.ToDecimal(reader.GetValue(iPieces)),
+                                   .Value = JdeValueConverter.ToDecimal(reader.GetValue(iValue)),
+                                   .Orders = JdeValueConverter.ToInt32(reader.GetValue(iOrders))}
+                               Return JdeQueries.ScaleFloat(item, _settings)
+                           End Function
+                End Function)
+        End Function
+
+        ''' <summary>
+        ''' Runs <paramref name="query"/> on a worker thread and maps each row. <paramref name="mapper"/> receives the
+        ''' open reader once (to look up the column ordinals) and returns the function that reads the current row
+        ''' (Nothing = skip the row). Cancelling the token cancels the command on the AS400.
+        ''' </summary>
+        Private Function Execute(Of T As Class)(query As JdeQuery, source As ProductionSource, cancellationToken As CancellationToken,
+                                               mapper As Func(Of OdbcDataReader, Func(Of T))) As Task(Of IReadOnlyList(Of T))
+            Return Task.Run(Of IReadOnlyList(Of T))(
                 Function()
                     Using command As New OdbcCommand(query.Sql, _connection)
                         command.CommandTimeout = _settings.CommandTimeoutSeconds
@@ -92,21 +135,14 @@ Namespace Odbc
                         Next
 
                         Using registration = cancellationToken.Register(Sub() TryCancel(command))
-                            Dim rows As New List(Of DailyProduction)()
+                            Dim rows As New List(Of T)()
                             Try
                                 Using reader = command.ExecuteReader(CommandBehavior.SingleResult)
-                                    Dim iArea = reader.GetOrdinal("AREA"), iDate = reader.GetOrdinal("FECHA"), iPieces = reader.GetOrdinal("PIEZAS")
-                                    Dim iValue = reader.GetOrdinal("COSTO_TOTAL"), iStyles = reader.GetOrdinal("ESTILOS")
+                                    Dim readRow = mapper(reader)
                                     While reader.Read()
                                         cancellationToken.ThrowIfCancellationRequested()
-                                        If reader.IsDBNull(iDate) Then Continue While
-                                        Dim row As New DailyProduction With {
-                                            .Area = JdeValueConverter.ToText(reader.GetValue(iArea)).Trim(),
-                                            .Date = JdeValueConverter.ToDate(reader.GetValue(iDate)),
-                                            .Pieces = JdeValueConverter.ToDecimal(reader.GetValue(iPieces)),
-                                            .Value = JdeValueConverter.ToDecimal(reader.GetValue(iValue)),
-                                            .Styles = JdeValueConverter.ToInt32(reader.GetValue(iStyles))}
-                                        rows.Add(JdeQueries.Scale(source, row, _settings))
+                                        Dim row = readRow()
+                                        If row IsNot Nothing Then rows.Add(row)
                                     End While
                                 End Using
                             Catch ex As OdbcException

@@ -96,10 +96,20 @@ Namespace ViewModels
             Demo = t.L("MODO DEMO · datos inventados", "DEMO MODE · invented data")
             ByDay = t.L("Por día", "By day")
             Month = t.L("Mes", "Month")
+            Float = "Float"
+            FloatTip = t.L("Custom float: órdenes FIN abiertas por estatus (F)", "Custom float: open FIN orders by status (F)")
+            FloatTotalTitle = t.L("FLOAT TOTAL", "TOTAL FLOAT")
+            ByStatus = t.L("Por estatus", "By status")
+            ByLine = t.L("Por línea", "By line")
         End Sub
 
         Public ReadOnly Property ByDay As String
         Public ReadOnly Property Month As String
+        Public ReadOnly Property Float As String
+        Public ReadOnly Property FloatTip As String
+        Public ReadOnly Property FloatTotalTitle As String
+        Public ReadOnly Property ByStatus As String
+        Public ReadOnly Property ByLine As String
 
         Public ReadOnly Property Area As String
         Public ReadOnly Property ChangeArea As String
@@ -114,6 +124,41 @@ Namespace ViewModels
         Public ReadOnly Property AttainmentTitle As String
         Public ReadOnly Property Demo As String
 
+    End Class
+
+    ''' <summary>One product line in the legend of the float chart (same colour slot as the chart).</summary>
+    Public NotInheritable Class FloatLegendItem
+        Public Property Name As String = String.Empty
+        Public Property Slot As Integer
+    End Class
+
+    ''' <summary>A row of the float "Datos" window: one style in one status.</summary>
+    Public NotInheritable Class FloatRow
+        Public Property Status As String = String.Empty
+        Public Property Style As String = String.Empty
+        Public Property ProductLine As String = String.Empty
+        Public Property Pieces As Decimal
+        Public Property Value As Decimal
+        Public Property Orders As Integer
+
+        Public ReadOnly Property ValueText As String
+            Get
+                Return Money.Full(Value)
+            End Get
+        End Property
+
+        Public ReadOnly Property PiecesText As String
+            Get
+                Return Money.Count(Pieces)
+            End Get
+        End Property
+
+        ''' <summary>W01 price per piece; "—" without price.</summary>
+        Public ReadOnly Property UnitText As String
+            Get
+                Return If(Pieces > 0D AndAlso Value > 0D, Money.Full(Value / Pieces), "—")
+            End Get
+        End Property
     End Class
 
     ''' <summary>A row of the "Datos" window.</summary>

@@ -24,6 +24,7 @@ Namespace ViewModels
         Private ReadOnly _refresher As ProductionRefresher
         Private ReadOnly _store As PreferencesStore
         Private ReadOnly _dashboard As IOptionsMonitor(Of DashboardSettings)
+        Private ReadOnly _jde As IOptionsMonitor(Of JdeSettings)
         Private ReadOnly _mode As AppMode
         Private ReadOnly _dialogs As IDialogService
         Private ReadOnly _clock As IClock
@@ -40,10 +41,17 @@ Namespace ViewModels
         Private _currentSourceDone As Boolean
 
         Public Sub New(refresher As ProductionRefresher, store As PreferencesStore, dashboard As IOptionsMonitor(Of DashboardSettings),
-                       mode As AppMode, dialogs As IDialogService, clock As IClock, logger As ILogger(Of MainViewModel))
+                       jde As IOptionsMonitor(Of JdeSettings), mode As AppMode, dialogs As IDialogService, clock As IClock,
+                       announcements As AnnouncementsViewModel, announcementService As AnnouncementService, logger As ILogger(Of MainViewModel))
+            Me.Announcements = announcements
+            ' The service talks from a background thread: the screen is updated on the UI thread
+            Dim ui = Dispatcher.CurrentDispatcher
+            AddHandler announcementService.Changed, Sub() ui.BeginInvoke(Sub() announcements.Refresh(_texts))
+            AddHandler announcementService.PreviewRequested, Sub(sender, a) ui.BeginInvoke(Sub() announcements.ShowPreview(a))
             _refresher = refresher
             _store = store
             _dashboard = dashboard
+            _jde = jde
             _mode = mode
             _dialogs = dialogs
             _clock = clock
@@ -61,13 +69,51 @@ Namespace ViewModels
             OpenAreaCommand = New RelayCommand(Of String)(AddressOf OpenArea)
             ShowDailyChartCommand = New RelayCommand(Sub() SetChartView(False))
             ShowMonthChartCommand = New RelayCommand(Sub() SetChartView(True))
-            ToggleChartCommand = New RelayCommand(Sub() If Not IsOverview Then SetChartView(Not IsMonthChart))
+            ToggleChartCommand = New RelayCommand(
+                Sub()
+                    If IsFloat Then
+                        SetFloatChartView(Not FloatByLine)
+                    ElseIf Not IsOverview Then
+                        SetChartView(Not IsMonthChart)
+                    End If
+                End Sub)
+            ToggleFloatCommand = New RelayCommand(Sub() SetFloat(Not _prefs.ShowFloat))
+            ShowFloatByStatusCommand = New RelayCommand(Sub() SetFloatChartView(False))
+            ShowFloatByLineCommand = New RelayCommand(Sub() SetFloatChartView(True))
 
             _timer = New DispatcherTimer(DispatcherPriority.Background) With {.Interval = TimeSpan.FromSeconds(1)}
             AddHandler _timer.Tick, AddressOf OnTick
         End Sub
 
         Public Event CloseRequested As EventHandler
+
+        ''' <summary>Remote announcements on top of the dashboard (card and strip).</summary>
+        Public ReadOnly Property Announcements As AnnouncementsViewModel
+
+        ''' <summary>Set by the window (F11 / Esc); reported to the panel.</summary>
+        Public Property IsFullScreen As Boolean
+
+        ''' <summary>What this screen shows right now, for the status report to the panel (call on the UI thread).</summary>
+        Public Function ScreenState() As Core.Remote.ScreenView
+            Dim view As New Core.Remote.ScreenView With {
+                .FullScreen = IsFullScreen,
+                .Resolution = $"{SystemParameters.PrimaryScreenWidth:0}x{SystemParameters.PrimaryScreenHeight:0}"}
+            If _prefs Is Nothing Then Return view
+            view.Language = If(_prefs.IsEnglish(), "EN", "ES")
+            view.AutoRotate = _prefs.AutoRotate
+            If IsFloat Then
+                view.View = "float"
+                view.AreaName = "Custom Float"
+            ElseIf IsOverview Then
+                view.View = "general"
+                view.AreaName = "Vista general"
+            Else
+                view.View = "area"
+                view.Area = CurrentArea.Code
+                view.AreaName = CurrentArea.DisplayName(False)
+            End If
+            Return view
+        End Function
 
         Public ReadOnly Property RefreshCommand As IAsyncRelayCommand
         Public ReadOnly Property ConnectCommand As IAsyncRelayCommand
@@ -82,6 +128,9 @@ Namespace ViewModels
         Public ReadOnly Property ShowDailyChartCommand As IRelayCommand
         Public ReadOnly Property ShowMonthChartCommand As IRelayCommand
         Public ReadOnly Property ToggleChartCommand As IRelayCommand
+        Public ReadOnly Property ToggleFloatCommand As IRelayCommand
+        Public ReadOnly Property ShowFloatByStatusCommand As IRelayCommand
+        Public ReadOnly Property ShowFloatByLineCommand As IRelayCommand
 
         Public ReadOnly Property TodayCard As New KpiCard()
         Public ReadOnly Property GapCard As New KpiCard()
@@ -93,6 +142,13 @@ Namespace ViewModels
 
         ''' <summary>Tiles of the overview, one per active area.</summary>
         Public ReadOnly Property Tiles As New System.Collections.ObjectModel.ObservableCollection(Of AreaTileViewModel)()
+
+        ' ---- Float screen
+        Public ReadOnly Property FloatLargestCard As New KpiCard()
+        Public ReadOnly Property FloatLineCard As New KpiCard()
+        Public ReadOnly Property FloatUnpricedCard As New KpiCard()
+        ''' <summary>One card per status under the float chart.</summary>
+        Public ReadOnly Property FloatStatusCards As New System.Collections.ObjectModel.ObservableCollection(Of KpiCard)()
 
 #Region "Bindable properties"
 
@@ -362,6 +418,90 @@ Namespace ViewModels
             End Set
         End Property
 
+        Private _isFloat As Boolean
+        ''' <summary>True = the custom float screen.</summary>
+        Public Property IsFloat As Boolean
+            Get
+                Return _isFloat
+            End Get
+            Private Set(value As Boolean)
+                SetProperty(_isFloat, value)
+            End Set
+        End Property
+
+        Private _isDetail As Boolean = True
+        ''' <summary>True = one area in detail (neither the overview nor the float).</summary>
+        Public Property IsDetail As Boolean
+            Get
+                Return _isDetail
+            End Get
+            Private Set(value As Boolean)
+                SetProperty(_isDetail, value)
+            End Set
+        End Property
+
+        Private _floatSnapshot As FloatSnapshot
+        Public Property FloatSnapshot As FloatSnapshot
+            Get
+                Return _floatSnapshot
+            End Get
+            Private Set(value As FloatSnapshot)
+                SetProperty(_floatSnapshot, value)
+            End Set
+        End Property
+
+        Private _floatByLine As Boolean
+        ''' <summary>True = float chart by product line, False = by status.</summary>
+        Public Property FloatByLine As Boolean
+            Get
+                Return _floatByLine
+            End Get
+            Private Set(value As Boolean)
+                SetProperty(_floatByLine, value)
+            End Set
+        End Property
+
+        Private _floatTotalText As String = "—"
+        Public Property FloatTotalText As String
+            Get
+                Return _floatTotalText
+            End Get
+            Private Set(value As String)
+                SetProperty(_floatTotalText, value)
+            End Set
+        End Property
+
+        Private _floatTotalSubtitle As String = String.Empty
+        Public Property FloatTotalSubtitle As String
+            Get
+                Return _floatTotalSubtitle
+            End Get
+            Private Set(value As String)
+                SetProperty(_floatTotalSubtitle, value)
+            End Set
+        End Property
+
+        Private _floatTakenText As String = String.Empty
+        ''' <summary>"Foto de JDE de las 10:35" (the float has no date: it is what JDE had at that moment).</summary>
+        Public Property FloatTakenText As String
+            Get
+                Return _floatTakenText
+            End Get
+            Private Set(value As String)
+                SetProperty(_floatTakenText, value)
+            End Set
+        End Property
+
+        Private _floatLegend As IReadOnlyList(Of FloatLegendItem) = Array.Empty(Of FloatLegendItem)()
+        Public Property FloatLegend As IReadOnlyList(Of FloatLegendItem)
+            Get
+                Return _floatLegend
+            End Get
+            Private Set(value As IReadOnlyList(Of FloatLegendItem))
+                SetProperty(_floatLegend, value)
+            End Set
+        End Property
+
         Private _tileColumns As Integer = 3
         Public Property TileColumns As Integer
             Get
@@ -570,6 +710,8 @@ Namespace ViewModels
         Private Sub OnTick(sender As Object, e As EventArgs)
             Dim now = _clock.Now
             ClockText = now.ToString("HH:mm", Globalization.CultureInfo.InvariantCulture)
+            ' Start and end times of the announcements are checked every second
+            Announcements.Refresh(_texts)
             If now.Date <> _renderedDay Then
                 Render()   ' midnight: new day in the chart
             ElseIf now >= _renderedMinute.AddMinutes(1) AndAlso Not IsBusy Then
@@ -595,11 +737,13 @@ Namespace ViewModels
             _currentSourceDone = False
             _nextRefresh = Date.MaxValue
             UpdateStatus()
-            Dim area = CurrentArea
+            Dim first = If(IsFloat, ProductionSource.Float, CurrentArea.Source())
             Dim fromDate = DashboardCalculator.QueryStart(_clock.Now, _prefs.HistoryDays)
             Dim progress As New Progress(Of ProductionSource)(
                 Sub(source)
-                    If IsOverview OrElse source = CurrentArea.Source() Then
+                    Dim onScreen = If(IsFloat, source = ProductionSource.Float,
+                                      If(IsOverview, source <> ProductionSource.Float, source = CurrentArea.Source()))
+                    If onScreen Then
                         _currentSourceDone = True
                         Render()
                     Else
@@ -607,7 +751,7 @@ Namespace ViewModels
                     End If
                 End Sub)
             Try
-                Dim outcome = Await _refresher.RefreshAsync(area.Source(), fromDate, allowPrompt, progress, CancellationToken.None)
+                Dim outcome = Await _refresher.RefreshAsync(first, fromDate, allowPrompt, progress, CancellationToken.None)
                 NeedsPassword = outcome.NeedsPassword
                 _store.SaveCache(_loadedDemo, _refresher.ExportCache())
             Catch ex As Exception
@@ -621,13 +765,28 @@ Namespace ViewModels
             End Try
         End Function
 
+        ''' <summary>Stop of the float screen in the rotation (after the last area).</summary>
+        Private Const FloatStop As String = "*FLOAT*"
+
+        ''' <summary>The active areas and, when it rotates too (or is on screen), the float.</summary>
+        Private Function RotationStops() As List(Of String)
+            Dim stops = _prefs.ActiveAreas().Select(Function(a) a.Code).ToList()
+            If _prefs.FloatInRotation OrElse _prefs.ShowFloat Then stops.Add(FloatStop)
+            Return stops
+        End Function
+
         Private Sub RotateArea(direction As Integer)
             If IsOverview Then Return
-            Dim active = _prefs.ActiveAreas().ToList()
-            If active.Count = 0 Then Return
-            Dim index = active.FindIndex(Function(a) String.Equals(a.Code, _prefs.CurrentArea, StringComparison.OrdinalIgnoreCase))
-            Dim nextIndex = ((index + direction) Mod active.Count + active.Count) Mod active.Count
-            SetArea(active(nextIndex).Code)
+            Dim stops = RotationStops()
+            If stops.Count = 0 Then Return
+            Dim current = If(_prefs.ShowFloat, FloatStop, _prefs.CurrentArea)
+            Dim index = stops.FindIndex(Function(c) String.Equals(c, current, StringComparison.OrdinalIgnoreCase))
+            Dim nextStop = stops(((index + direction) Mod stops.Count + stops.Count) Mod stops.Count)
+            If nextStop = FloatStop Then
+                SetFloat(True)
+            Else
+                SetArea(nextStop)
+            End If
         End Sub
 
         Private Sub ChangeArea()
@@ -644,6 +803,7 @@ Namespace ViewModels
         Private Sub SetArea(code As String)
             If _prefs.FindArea(code) Is Nothing Then Return
             _prefs.CurrentArea = _prefs.FindArea(code).Code
+            _prefs.ShowFloat = False
             _nextRotate = _clock.Now.AddSeconds(_prefs.RotateSeconds)
             _store.Save(_prefs)
             Render()
@@ -667,6 +827,10 @@ Namespace ViewModels
         End Function
 
         Private Sub ShowData()
+            If IsFloat Then
+                ShowFloatData()
+                Return
+            End If
             Dim snap = Snapshot
             If snap Is Nothing OrElse IsOverview Then Return
             Dim rows = snap.Days.Reverse().Select(
@@ -680,6 +844,24 @@ Namespace ViewModels
             _timer.Stop()
             Try
                 _dialogs.ShowData(CurrentArea.DisplayName(English) & Texts.Bullet & _texts.L("Meta diaria ", "Daily goal ") & Money.Full(snap.Goal), rows, English)
+            Finally
+                _timer.Start()
+            End Try
+        End Sub
+
+        ''' <summary>The float style by style (what the chart adds up), by status in the configured order and by value.</summary>
+        Private Sub ShowFloatData()
+            Dim order = _jde.CurrentValue.FloatStatusList().ToList()
+            Dim rows = _refresher.GetFloat().Select(Function(i) New FloatRow With {
+                    .Status = i.Status.Trim().ToUpperInvariant(), .Style = i.Style, .ProductLine = i.ProductLine,
+                    .Pieces = i.Pieces, .Value = i.Value, .Orders = i.Orders}).
+                OrderBy(Function(r) If(order.Contains(r.Status), order.IndexOf(r.Status), order.Count)).ThenBy(Function(r) r.Status, StringComparer.Ordinal).
+                ThenByDescending(Function(r) r.Value).ThenBy(Function(r) r.Style, StringComparer.Ordinal).ToList()
+            Dim snap = FloatSnapshot
+            Dim title = "Custom Float" & Texts.Bullet & If(snap Is Nothing, "", Money.Full(snap.TotalValue) & Texts.Bullet) & FloatTakenText
+            _timer.Stop()
+            Try
+                _dialogs.ShowFloatData(title, rows, English)
             Finally
                 _timer.Start()
             End Try
@@ -706,11 +888,17 @@ Namespace ViewModels
             _renderedMinute = New Date(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0)
             ClockText = now.ToString("HH:mm", Globalization.CultureInfo.InvariantCulture)
             DateText = t.LongDate(now).ToUpper(Globalization.CultureInfo.CurrentCulture)
-            IsOverview = _prefs.ShowOverview
+            IsFloat = _prefs.ShowFloat
+            IsOverview = _prefs.ShowOverview AndAlso Not IsFloat
+            IsDetail = Not IsFloat AndAlso Not IsOverview
             IsMonthChart = String.Equals(_prefs.ChartView, MonthChartView, StringComparison.OrdinalIgnoreCase)
+            FloatByLine = String.Equals(_prefs.FloatChartView, FloatLineView, StringComparison.OrdinalIgnoreCase)
             ViewToggleText = If(IsOverview, t.L("Ver detalle", "Detail view"), t.L("Vista general", "All areas"))
 
-            If IsOverview Then
+            Announcements.Refresh(t)
+            If IsFloat Then
+                RenderFloat(t, now)
+            ElseIf IsOverview Then
                 RenderOverview(t, now)
             Else
                 RenderArea(t, now)
@@ -859,7 +1047,99 @@ Namespace ViewModels
                        Texts.Bullet & t.L("se actualiza cada ", "refreshes every ") & RefreshMinutes & " min"
             If _prefs.AutoRotate Then info &= Texts.Bullet & t.L("cambio de área cada ", "area changes every ") & _prefs.RotateSeconds & " s"
             FooterInfo = info
-            AreaDots = If(_prefs.AutoRotate, CType(_prefs.ActiveAreas().Select(Function(a) String.Equals(a.Code, area.Code, StringComparison.OrdinalIgnoreCase)).ToList(), IReadOnlyList(Of Boolean)), Array.Empty(Of Boolean)())
+            AreaDots = RotationDots(area.Code)
+        End Sub
+
+        ''' <summary>One dot per stop of the rotation (True = the one on screen); none when rotation is off.</summary>
+        Private Function RotationDots(current As String) As IReadOnlyList(Of Boolean)
+            If Not _prefs.AutoRotate Then Return Array.Empty(Of Boolean)()
+            Return RotationStops().Select(Function(c) String.Equals(c, current, StringComparison.OrdinalIgnoreCase)).ToList()
+        End Function
+
+        ''' <summary>
+        ''' The custom float: the total and where it sits (by status and product line). It is a picture of what JDE
+        ''' had at the last query, so the screen says from what time it is.
+        ''' </summary>
+        Private Sub RenderFloat(t As Texts, now As Date)
+            Dim jde = _jde.CurrentValue
+            Dim priceType = jde.PriceType.Trim()
+            Dim snap = FloatCalculator.Build(_refresher.GetFloat(), jde.FloatStatusList())
+            Dim taken = _refresher.GetStatus(ProductionSource.Float).LastSuccess
+            Dim takenText = If(taken.HasValue,
+                               t.L("Foto de JDE de las ", "JDE snapshot at ") & taken.Value.ToString("HH:mm", Globalization.CultureInfo.InvariantCulture) &
+                               If(taken.Value.Date <> now.Date, " " & t.DayMonth(taken.Value), ""),
+                               t.L("Sin datos de JDE todavía", "No JDE data yet"))
+            Dim ofFloat = t.L(" del float", " of the float")
+
+            ' ---- Header
+            Title = "CUSTOM FLOAT"
+            Subtitle = t.L("Órdenes FIN abiertas por estatus", "Open FIN orders by status") & Texts.Bullet &
+                       "F4801 " & String.Join(", ", snap.Statuses.Select(Function(s) s.Code)) & Texts.Bullet &
+                       t.L("Valor en US$ (", "Value in US$ (") & priceType & ")"
+            AreaButtonText = CurrentArea.DisplayName(t.English)
+
+            ' ---- Navy card: the whole float
+            FloatTotalText = Money.Full(snap.TotalValue)
+            FloatTotalSubtitle = t.PiecesAndStyles(snap.TotalPieces, snap.Styles) & Texts.Bullet &
+                                 snap.Orders.ToString(Globalization.CultureInfo.InvariantCulture) & t.L(" órdenes", " orders")
+            FloatTakenText = takenText
+
+            ' ---- Where most of it sits, the main line and what has no price
+            Dim largest = snap.Largest()
+            Dim largestTitle = t.L("MAYOR ACUMULACIÓN", "LARGEST PILE-UP")
+            If largest Is Nothing Then
+                FloatLargestCard.Update(largestTitle, "—", t.L("Sin valor en el float", "No value in the float"))
+            Else
+                FloatLargestCard.Update(largestTitle, largest.Code & "  " & Money.Rounded(largest.Value),
+                                        Money.Percent(largest.Share) & ofFloat & Texts.Bullet & t.PiecesAndStyles(largest.Pieces, largest.Styles))
+            End If
+            Dim mainLine = snap.Lines.Where(Function(l) Not l.IsOther AndAlso l.Value > 0D).OrderByDescending(Function(l) l.Value).FirstOrDefault()
+            Dim lineTitle = t.L("LÍNEA PRINCIPAL", "MAIN PRODUCT LINE")
+            If mainLine Is Nothing Then
+                FloatLineCard.Update(lineTitle, "—", If(snap.IsEmpty, t.L("Sin órdenes en el float", "No orders in the float"),
+                                                        t.L("Sin línea de producto en F58C3120", "No product line in F58C3120")))
+            Else
+                FloatLineCard.Update(lineTitle, mainLine.Name, Money.Rounded(mainLine.Value) & Texts.Bullet & Money.Percent(mainLine.Share) & ofFloat)
+            End If
+            Dim unpricedTitle = t.L("PIEZAS SIN PRECIO " & priceType, "PIECES WITHOUT " & priceType & " PRICE")
+            If snap.UnpricedStyles > 0 Then
+                FloatUnpricedCard.Update(unpricedTitle, Money.Count(snap.UnpricedPieces),
+                                         snap.UnpricedStyles.ToString(Globalization.CultureInfo.InvariantCulture) &
+                                         If(snap.UnpricedStyles = 1, t.L(" estilo suma piezas pero $0", " style adds pieces but $0"),
+                                                                     t.L(" estilos suman piezas pero $0", " styles add pieces but $0")), Tone.Warn)
+            Else
+                FloatUnpricedCard.Update(unpricedTitle, "0", t.L("Todos los estilos tienen precio", "Every style has a price"), Tone.Good)
+            End If
+
+            ' ---- One card per status (the objects are kept: only the numbers change every minute)
+            If FloatStatusCards.Count <> snap.Statuses.Count Then
+                FloatStatusCards.Clear()
+                For Each s In snap.Statuses
+                    FloatStatusCards.Add(New KpiCard())
+                Next
+            End If
+            For i = 0 To snap.Statuses.Count - 1
+                Dim s = snap.Statuses(i)
+                FloatStatusCards(i).Update(t.L("ESTATUS ", "STATUS ") & s.Code, Money.Full(s.Value),
+                                           Money.Percent(s.Share) & Texts.Bullet & t.PiecesAndStyles(s.Pieces, s.Styles))
+            Next
+
+            ' ---- Chart
+            ChartTitle = If(FloatByLine, t.L("Float por línea de producto", "Float by product line"), t.L("Float por estatus", "Float by status"))
+            ChartRange = takenText & If(snap.UnclassifiedStyles > 0,
+                Texts.Bullet & snap.UnclassifiedStyles.ToString(Globalization.CultureInfo.InvariantCulture) &
+                If(snap.UnclassifiedStyles = 1, t.L(" estilo sin línea", " style without a line"), t.L(" estilos sin línea", " styles without a line")), "")
+            FloatLegend = snap.Lines.Select(Function(l) New FloatLegendItem With {.Name = Global.DashboardMetas.App.Controls.FloatChart.LineName(l, t), .Slot = l.Slot}).ToList()
+            FloatSnapshot = snap
+
+            ' ---- Footer
+            FooterGoal = "Custom Float."
+            ' Short like the area's footer (the source is already under the title); the long one did not fit next to the buttons
+            Dim info = t.L("Órdenes FIN abiertas", "Open FIN orders") &
+                       Texts.Bullet & t.L("se actualiza cada ", "refreshes every ") & RefreshMinutes & " min"
+            If _prefs.AutoRotate Then info &= Texts.Bullet & t.L("cambio cada ", "changes every ") & _prefs.RotateSeconds & " s"
+            FooterInfo = info
+            AreaDots = RotationDots(FloatStop)
         End Sub
 
         ''' <summary>All active areas at once: today's attainment, pace, month and a mini chart per tile.</summary>
@@ -927,7 +1207,8 @@ Namespace ViewModels
             If _prefs Is Nothing Then Return
             Dim t = _texts
             Dim retry = t.L("reintento en ", "retry in ") & RefreshMinutes & " min"
-            Dim sources = If(IsOverview, AreaCatalog.AllSources.ToList(), New List(Of ProductionSource) From {CurrentArea.Source()})
+            Dim sources = If(IsFloat, New List(Of ProductionSource) From {ProductionSource.Float},
+                             If(IsOverview, AreaCatalog.AllSources.ToList(), New List(Of ProductionSource) From {CurrentArea.Source()}))
             Dim statuses = sources.Select(Function(s) _refresher.GetStatus(s)).ToList()
             Dim failing = statuses.Where(Function(s) s.HasError).ToList()
 
@@ -952,7 +1233,15 @@ Namespace ViewModels
             ElseIf statuses.All(Function(s) s.LastSuccess.HasValue) Then
                 Dim ok = t.L("Actualizado ", "Updated ") & statuses.Min(Function(s) s.LastSuccess.Value).ToString("HH:mm", Globalization.CultureInfo.InvariantCulture)
                 Dim snap = Snapshot
-                If Not IsOverview AndAlso snap IsNot Nothing AndAlso snap.TotalPieces = 0D AndAlso snap.TotalValue = 0D Then
+                If IsFloat AndAlso FloatSnapshot IsNot Nothing AndAlso FloatSnapshot.IsEmpty Then
+                    StatusText = ok & Texts.Bullet & t.L("JDE no devolvió órdenes del float", "no float orders from JDE")
+                    StatusDetail = t.L("JDE respondió, pero no hay órdenes FIN abiertas en los estatus del float.", "JDE answered, but there are no open FIN orders in the float statuses.")
+                    StatusTone = Tone.Warn
+                ElseIf IsFloat Then
+                    StatusText = ok & Texts.Bullet & t.L("cada ", "every ") & RefreshMinutes & " min"
+                    StatusDetail = Nothing
+                    StatusTone = Tone.Good
+                ElseIf Not IsOverview AndAlso snap IsNot Nothing AndAlso snap.TotalPieces = 0D AndAlso snap.TotalValue = 0D Then
                     StatusText = ok & Texts.Bullet & t.L("JDE no devolvió registros de esta área", "no records from JDE for this area")
                     StatusDetail = t.L("JDE respondió, pero sin registros de esta área en el rango de fechas.", "JDE answered, but there are no records for this area in the date range.")
                     StatusTone = Tone.Warn
@@ -977,8 +1266,11 @@ Namespace ViewModels
 
         Public Const MonthChartView As String = "Month"
 
+        Public Const FloatLineView As String = "Line"
+
         Private Sub SetOverview(value As Boolean)
             _prefs.ShowOverview = value
+            _prefs.ShowFloat = False
             _store.Save(_prefs)
             _nextRotate = _clock.Now.AddSeconds(_prefs.RotateSeconds)
             Render()
@@ -988,6 +1280,20 @@ Namespace ViewModels
             If _prefs.FindArea(code) Is Nothing Then Return
             _prefs.CurrentArea = _prefs.FindArea(code).Code
             SetOverview(False)
+        End Sub
+
+        Private Sub SetFloat(value As Boolean)
+            _prefs.ShowFloat = value
+            If value Then _prefs.ShowOverview = False
+            _store.Save(_prefs)
+            _nextRotate = _clock.Now.AddSeconds(_prefs.RotateSeconds)
+            Render()
+        End Sub
+
+        Private Sub SetFloatChartView(byLine As Boolean)
+            _prefs.FloatChartView = If(byLine, FloatLineView, "Status")
+            _store.Save(_prefs)
+            Render()
         End Sub
 
         Private Sub SetChartView(month As Boolean)
