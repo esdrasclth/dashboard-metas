@@ -125,7 +125,7 @@ async function publish(changes, question) {
     const signed = await signEnvelope(RELEASE_FORMAT, manifest, key.privateKey, key.keyId);
     await deps.api("/api/release", { method: "POST", headers: { "content-type": "application/json" }, body: signed });
     await load();
-    deps.toast("Listo. Las pantallas se enteran en unos 30 segundos.", "ok");
+    deps.toast("Listo. Las pantallas se enteran en unos segundos.", "ok");
   } catch (error) {
     deps.toast(error.details?.length ? `${error.message} ${error.details[0]}` : error.message, "error");
   }

@@ -50,6 +50,8 @@ Namespace Services
         Private ReadOnly _remoteConfig As RemoteConfigService
         Private ReadOnly _commands As RemoteCommandService
         Private ReadOnly _store As PreferencesStore
+        Private ReadOnly _realtime As RealtimeListener
+        Private _lastTokenWake As DateTimeOffset = DateTimeOffset.MinValue
         Private ReadOnly _mode As AppMode
         Private ReadOnly _services As IServiceProvider
         Private ReadOnly _logger As ILogger
@@ -65,7 +67,8 @@ Namespace Services
         Public Sub New(settings As IOptionsMonitor(Of StatusSettings), jde As IOptionsMonitor(Of JdeSettings), identity As DeviceIdentity,
                        refresher As ProductionRefresher, announcements As AnnouncementService, updates As UpdateService, mode As AppMode,
                        remoteConfig As RemoteConfigService, commands As RemoteCommandService, store As PreferencesStore,
-                       services As IServiceProvider, logger As ILogger(Of ScreenReporter))
+                       realtime As RealtimeListener, services As IServiceProvider, logger As ILogger(Of ScreenReporter))
+            _realtime = realtime
             _updates = updates
             _remoteConfig = remoteConfig
             _commands = commands
@@ -86,6 +89,12 @@ Namespace Services
             AddHandler commands.Changed, Sub() Wake()
             AddHandler remoteConfig.Changed, Sub() Wake()
             AddHandler announcements.FileReceived, Sub(s, content) OnControlFile(content)
+            ' The token for instant notices comes with a report: ask for it soon, but not more than every 5 minutes
+            AddHandler realtime.NeedsToken, Sub()
+                                                If DateTimeOffset.Now - _lastTokenWake < TimeSpan.FromMinutes(5) Then Return
+                                                _lastTokenWake = DateTimeOffset.Now
+                                                Wake()
+                                            End Sub
         End Sub
 
         Private _signalConfig As Long
@@ -260,6 +269,14 @@ Namespace Services
                     If doc.RootElement.TryGetProperty("update", update) AndAlso update.ValueKind = JsonValueKind.Object Then
                         _updates.Offer(update.GetProperty("manifest").GetString(), update.GetProperty("downloadUrl").GetString())
                     End If
+                    ' Listen-only token for the instant notices
+                    Dim realtime As JsonElement
+                    If doc.RootElement.TryGetProperty("realtime", realtime) AndAlso realtime.ValueKind = JsonValueKind.Object Then
+                        Dim expires As DateTimeOffset
+                        If DateTimeOffset.TryParse(realtime.GetProperty("expires").GetString(), Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None, expires) Then
+                            _realtime.Offer(realtime.GetProperty("token").GetString(), expires, realtime.GetProperty("channel").GetString(), realtime.GetProperty("url").GetString())
+                        End If
+                    End If
                     ' «Metas y turnos» (only for screens approved in the panel)
                     Dim config As JsonElement
                     If doc.RootElement.TryGetProperty("config", config) AndAlso config.ValueKind = JsonValueKind.String Then
@@ -308,6 +325,7 @@ Namespace Services
                 .Config = _remoteConfig.Status(),
                 .Areas = areas,
                 .Commands = _commands.Results(),
+                .Realtime = _realtime.Status(),
                 .DeviceId = _identity.Id,
                 .PublicKey = _identity.PublicKey,
                 .SentAt = NextSentAt(),

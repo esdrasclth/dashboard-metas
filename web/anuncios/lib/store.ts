@@ -1,4 +1,5 @@
 import { get, list, put } from "@vercel/blob";
+import { notify } from "./realtime.js";
 import { liveCommands } from "./remote.js";
 import { payloadOf, type SignedFeed } from "./signing.js";
 
@@ -61,7 +62,7 @@ type ControlParts = { envelope: Partial<SignedFeed>; commands: SignedFeed[]; sig
  * Reads the control file, changes one part and writes it back: announcements, commands and signals never undo each
  * other. Expired commands are dropped on every write.
  */
-async function updateControl(change: (parts: ControlParts) => ControlParts): Promise<void> {
+async function updateControl(change: (parts: ControlParts) => ControlParts, what: string): Promise<void> {
   const current = await readCurrent();
   const doc: Current["signed"] | Record<string, never> = current && current !== "not-modified" ? current.signed : {};
   const { format, keyId, payload, signature } = doc as Partial<SignedFeed>;
@@ -72,16 +73,18 @@ async function updateControl(change: (parts: ControlParts) => ControlParts): Pro
   });
   const announcements = next.envelope.payload ? next.envelope : {};
   await put(CURRENT(), JSON.stringify({ ...announcements, commands: next.commands, signals: next.signals }), CURRENT_OPTIONS);
+  // The screens listening check it now instead of in up to 30 s
+  await notify(what);
 }
 
 /** Adds a verified signed command to the control file: every screen gets it on its next check (≤ 30 s). */
 export async function addCommand(command: SignedFeed, keep = 30): Promise<void> {
-  await updateControl((p) => ({ ...p, commands: [...p.commands, command].slice(-keep) }));
+  await updateControl((p) => ({ ...p, commands: [...p.commands, command].slice(-keep) }), "comando");
 }
 
 /** New goals or a new version: the screens see the number change and report right away to get them. */
 export async function signal(changes: Signals): Promise<void> {
-  await updateControl((p) => ({ ...p, signals: { ...p.signals, ...changes } }));
+  await updateControl((p) => ({ ...p, signals: { ...p.signals, ...changes } }), changes.config ? "metas" : "version");
 }
 
 /** The commands in the control file that are still in date. */
@@ -95,7 +98,7 @@ export async function publish(text: string, version: number): Promise<void> {
   const options = { access: "private" as const, contentType: "application/json", addRandomSuffix: false };
   await put(`${HISTORY()}${String(version).padStart(12, "0")}.json`, text, { ...options, allowOverwrite: false });
   const { format, keyId, payload, signature } = JSON.parse(text) as SignedFeed;
-  await updateControl((p) => ({ ...p, envelope: { format, keyId, payload, signature } }));
+  await updateControl((p) => ({ ...p, envelope: { format, keyId, payload, signature } }), "anuncios");
 }
 
 export interface HistoryEntry {

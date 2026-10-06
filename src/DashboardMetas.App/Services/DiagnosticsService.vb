@@ -49,10 +49,12 @@ Namespace Services
         Private ReadOnly _updates As UpdateService
         Private ReadOnly _remoteConfig As RemoteConfigService
         Private ReadOnly _commands As RemoteCommandService
+        Private ReadOnly _realtime As RealtimeListener
 
         Public Sub New(jde As IOptionsMonitor(Of JdeSettings), dashboard As IOptionsMonitor(Of DashboardSettings), mode As AppMode, paths As AppPaths,
                        announcements As AnnouncementService, reporter As ScreenReporter, updates As UpdateService,
-                       remoteConfig As RemoteConfigService, commands As RemoteCommandService)
+                       remoteConfig As RemoteConfigService, commands As RemoteCommandService, realtime As RealtimeListener)
+            _realtime = realtime
             _remoteConfig = remoteConfig
             _commands = commands
             _updates = updates
@@ -157,6 +159,11 @@ Namespace Services
                    If(config.Revision = 0, "los de esta pantalla (el panel no ha enviado ninguna)",
                       $"revisión {config.Revision} del panel{If(config.AppliedAt.HasValue, " (" & config.AppliedAt.Value.ToString("dd/MM HH:mm") & ")", "")} · administra {If(config.Managed.Count = 0, "ninguna área", String.Join(", ", config.Managed))}")),
                 If(String.IsNullOrEmpty(config.Error), DiagnosticLevel.Ok, DiagnosticLevel.Error)))
+            Dim rt = _realtime.Status()
+            items.Add(New DiagnosticItem(panel, "Avisos instantáneos",
+                If(rt.Connected, $"conectado{If(rt.LastMessageAt.HasValue, " · último aviso " & rt.LastMessageAt.Value.ToString("dd/MM HH:mm:ss"), "")}",
+                   If(String.IsNullOrEmpty(rt.Error), "sin conectar todavía (llega el permiso con el primer reporte)", rt.Error) & " · se consulta cada 30 s"),
+                If(rt.Connected, DiagnosticLevel.Ok, DiagnosticLevel.Warning)))
             Dim last = _commands.Results().FirstOrDefault()
             If last IsNot Nothing Then
                 items.Add(New DiagnosticItem(panel, "Último comando", $"{last.Action} · {last.At:dd/MM HH:mm}{If(last.Ok, "", " · NO SE PUDO: " & last.Detail)}",

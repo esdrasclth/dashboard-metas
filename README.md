@@ -399,11 +399,18 @@ devuelve el control a cada pantalla.
 | **Actualizar datos** | Consulta JDE ahora, sin esperar los 5 minutos |
 | **Reiniciar la app** | Cierra y vuelve a abrir Dashboard Metas (unos segundos) |
 
-Llegan en **unos 30 segundos**: viajan en el mismo archivo que los anuncios, que cada pantalla consulta cada 30 s. Van
+Llegan en **unos segundos**. Viajan en el mismo archivo que los anuncios, que cada pantalla consulta cada 30 s, y además el panel avisa al instante. Van
 firmados, valen 10 minutos y cada pantalla ejecuta cada uno **una sola vez**: un «Reiniciar» nunca se repite al volver
 a abrir. El resultado (hecho o por qué no) aparece en el detalle de la pantalla, en «Últimos comandos».
 
 Una PC en modo demo recibe los comandos y anuncios del panel, salvo que tenga activado «Simular anuncios».
+
+**Avisos instantáneos.** Cada pantalla mantiene abierta una conexión HTTPS de escucha (Server-Sent Events, servicio
+Ably). Cuando publicas algo (anuncio, comando, metas o versión), el panel manda por ahí un «algo cambió» **sin datos**
+y la pantalla consulta en ese momento, así que todo llega en **2 a 5 segundos**. La pantalla solo recibe un permiso
+temporal de escucha (no puede publicar). Si la red o el proxy cortan esa conexión, la pantalla reintenta sola y mientras
+tanto sigue enterándose cada 30 segundos. El estado se ve en Diagnóstico › «Avisos instantáneos» y en el detalle de la
+pantalla en el panel.
 
 ### La clave
 

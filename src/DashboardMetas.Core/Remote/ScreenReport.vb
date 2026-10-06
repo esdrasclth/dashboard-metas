@@ -30,6 +30,15 @@ Namespace Remote
         Public Property Areas As List(Of AreaSummary) = New List(Of AreaSummary)()
         ''' <summary>The last commands from the panel and what happened, newest first.</summary>
         Public Property Commands As List(Of CommandResult) = New List(Of CommandResult)()
+        ''' <summary>Instant notices from the panel (the reply brings a listen-only token when this one is missing or ending).</summary>
+        Public Property Realtime As New RealtimeState()
+    End Class
+
+    Public NotInheritable Class RealtimeState
+        Public Property Connected As Boolean
+        Public Property TokenExpiresAt As DateTimeOffset?
+        Public Property LastMessageAt As DateTimeOffset?
+        Public Property [Error] As String
     End Class
 
     Public NotInheritable Class RemoteConfigState

@@ -197,6 +197,9 @@ Class Application
 
         ' Screen status reported to the panel, signed with this PC's own key
         services.AddSingleton(Of DeviceIdentity)()
+        ' Instant notices from the panel (SSE): the screen checks the control file as soon as something changes
+        services.AddSingleton(Of RealtimeListener)()
+        services.AddHostedService(Function(sp) sp.GetRequiredService(Of RealtimeListener)())
         ' Commands from the panel (they travel in the control file the announcements come from)
         services.AddSingleton(Of RemoteCommandService)()
         services.AddSingleton(Of ScreenReporter)()

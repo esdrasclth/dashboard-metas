@@ -1,5 +1,6 @@
 import { MAX_REPORT_BYTES, verifyHeartbeat } from "../lib/devices.js";
 import { offerFor } from "../lib/releases.js";
+import { screenToken } from "../lib/realtime.js";
 import { currentConfig } from "../lib/remote.js";
 import { saveReport } from "../lib/screens.js";
 
@@ -41,7 +42,11 @@ export async function POST(request: Request): Promise<Response> {
         console.error("No se pudieron leer las metas", error);
       }
     }
-    return reply(200, { ok: true, serverTime: at, update, config });
+    // Instant notices: a listen-only token when the screen has none or it ends within the hour
+    let realtime = null;
+    const rt = check.report.realtime;
+    if (rt && (!rt.tokenExpiresAt || Date.parse(rt.tokenExpiresAt) - Date.now() < 3600_000)) realtime = await screenToken();
+    return reply(200, { ok: true, serverTime: at, update, config, realtime });
   } catch (error) {
     console.error(error);
     return reply(503, { error: "Servicio no disponible." });

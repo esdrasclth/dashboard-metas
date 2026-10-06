@@ -161,6 +161,9 @@ function fillDetail(id) {
       : r.config.error ? `Rechazó las del panel: ${r.config.error}`
       : r.config.revision ? `Revisión ${r.config.revision} del panel (${r.config.managed.length ? r.config.managed.join(", ") : "ninguna área administrada"})`
       : "Aprobada; todavía sin metas del panel"],
+    ["Avisos instantáneos", !r.realtime ? "Su versión no los tiene (se entera cada 30–60 s)"
+      : r.realtime.connected ? `Conectado${r.realtime.lastMessageAt ? ` · último aviso ${stamp(r.realtime.lastMessageAt)}` : ""}`
+      : `Sin conexión${r.realtime.error ? `: ${r.realtime.error}` : ""} · se entera cada 30 s`],
     ["Encendida desde", stamp(r.startedAt)],
     ["Primer reporte", stamp(s.firstSeen)],
     ["Último reporte", `${stamp(s.lastSeen)} (${ago(s.lastSeen)})`],

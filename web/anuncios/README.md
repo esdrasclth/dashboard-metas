@@ -54,6 +54,10 @@ navegador (panel)                      Vercel                                   
 - **Señales:** al guardar metas o una versión, `control/actual.json` recibe `signals: {config, release}` (solo los
   números de revisión). La pantalla que ve un número nuevo reporta al momento y recibe lo nuevo en la respuesta, en ~30 s
   en vez de esperar su reporte de cada 5 minutos.
+- **Avisos instantáneos (Ably):** cada vez que cambia `control/actual.json`, `lib/realtime.ts` publica «cambio» en el canal
+  `dm:avisos` (en local `dm:dev:avisos`). La respuesta de `/api/heartbeat` le da a cada pantalla de versión 1.4 o más nueva
+  un token de **solo escucha** de ese canal (12 h; se renueva antes de vencer). La pantalla escucha por SSE y al recibir el
+  aviso consulta `/control.json`. Sin `ABLY_API_KEY`, o si Ably falla, todo sigue con la consulta de cada 30 s.
 - `/control.json` es público a propósito (solo trae anuncios firmados que las pantallas muestran igual) y responde con
   ETag y `no-cache`: una pantalla sin cambios recibe 304.
 
@@ -74,6 +78,7 @@ scripts/    hash-password.mjs (contraseña), interop-check.mjs (firma compatible
 | `ADMIN_PASSWORD_HASH` | Hash scrypt de la contraseña del panel (`scrypt:N:r:p:sal:hash`) |
 | `SESSION_SECRET` | Secreto para firmar la cookie de sesión (12 h) |
 | `BLOB_READ_WRITE_TOKEN` | Lo agrega Vercel al conectar el almacén Blob `dashboard-metas-anuncios` |
+| `ABLY_API_KEY` | Clave de Ably (`app.clave:secreto`, publicar y escuchar en `dm:*`) para los avisos instantáneos. Sin ella, todo funciona con la consulta de 30 s |
 | `KV_REST_API_URL` · `KV_REST_API_TOKEN` | Los agrega Vercel al conectar **Upstash for Redis** (estado de las pantallas). Sin ellos la pestaña Pantallas muestra un aviso y los reportes responden 503 |
 
 ### Cambiar la contraseña
@@ -96,7 +101,7 @@ vercel dev            :: http://localhost:3000 (mismo almacén Blob, pero bajo d
 ```
 
 Para `vercel dev` las variables locales van en `.env` (no versionado): `ADMIN_PASSWORD_HASH`, `SESSION_SECRET`,
-`BLOB_READ_WRITE_TOKEN` y `STORE_PREFIX=dev/`. Con el prefijo, todo lo que se escribe en local (archivo de control,
+`BLOB_READ_WRITE_TOKEN`, `ABLY_API_KEY` y `STORE_PREFIX=dev/`. Con el prefijo, todo lo que se escribe en local (archivo de control,
 comandos, metas, versiones) queda bajo `dev/` y las pantallas reales no lo ven. Sin Redis, `vercel dev` guarda las pantallas en un JSON temporal
 (`%TEMP%\dashboard-metas-pantallas-dev.json`); para probar, poner en la app `Status:Url` =
 `http://localhost:3000/api/heartbeat`.

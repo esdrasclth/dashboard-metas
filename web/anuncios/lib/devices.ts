@@ -57,6 +57,8 @@ export interface DeviceReport {
   areas: AreaSummary[];
   /** Last commands from the panel and what happened, newest first. */
   commands: CommandResult[];
+  /** Instant notices (Ably SSE); null for versions without them. */
+  realtime: { connected: boolean; tokenExpiresAt?: string; lastMessageAt?: string; error?: string } | null;
 }
 
 export interface AreaSummary {
@@ -124,6 +126,7 @@ function sanitize(raw: any): DeviceReport {
   const ann = raw?.announcements ?? {};
   const upd = raw?.update ?? {};
   const cfg = raw?.config ?? {};
+  const rt = raw?.realtime;
   return {
     deviceId: text(raw?.deviceId, 32),
     publicKey: text(raw?.publicKey, 300),
@@ -186,6 +189,9 @@ function sanitize(raw: any): DeviceReport {
       breakStart: text(a?.breakStart, 5),
       breakEnd: text(a?.breakEnd, 5),
     })),
+    realtime: rt && typeof rt === "object"
+      ? { connected: rt.connected === true, tokenExpiresAt: iso(rt.tokenExpiresAt), lastMessageAt: iso(rt.lastMessageAt), error: text(rt.error, 300) || undefined }
+      : null,
     commands: (Array.isArray(raw?.commands) ? raw.commands : []).slice(0, 10).map((c: any) => ({
       id: text(c?.id, 64),
       action: text(c?.action, 120),
