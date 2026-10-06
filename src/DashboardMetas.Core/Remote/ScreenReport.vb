@@ -24,6 +24,33 @@ Namespace Remote
         Public Property Jde As New JdeState()
         Public Property Announcements As New AnnouncementsState()
         Public Property Update As New UpdateState()
+        ''' <summary>«Metas y turnos» from the panel on this screen.</summary>
+        Public Property Config As New RemoteConfigState()
+        ''' <summary>Goals and shifts this screen uses now (the panel starts its editor from them; never production figures).</summary>
+        Public Property Areas As List(Of AreaSummary) = New List(Of AreaSummary)()
+        ''' <summary>The last commands from the panel and what happened, newest first.</summary>
+        Public Property Commands As List(Of CommandResult) = New List(Of CommandResult)()
+    End Class
+
+    Public NotInheritable Class RemoteConfigState
+        ''' <summary>0 = none received.</summary>
+        Public Property Revision As Long
+        Public Property AppliedAt As DateTimeOffset?
+        ''' <summary>Area codes the panel manages here.</summary>
+        Public Property Managed As List(Of String) = New List(Of String)()
+        Public Property [Error] As String
+    End Class
+
+    Public NotInheritable Class AreaSummary
+        Public Property Code As String = String.Empty
+        Public Property Name As String = String.Empty
+        Public Property Active As Boolean
+        Public Property DailyGoal As Decimal
+        Public Property MonthlyGoal As Decimal
+        Public Property ShiftStart As String = String.Empty
+        Public Property ShiftEnd As String = String.Empty
+        Public Property BreakStart As String = String.Empty
+        Public Property BreakEnd As String = String.Empty
     End Class
 
     ''' <summary>Automatic update on this screen, for the panel ("Versiones").</summary>

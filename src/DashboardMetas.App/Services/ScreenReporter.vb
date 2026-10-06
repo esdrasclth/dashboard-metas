@@ -47,6 +47,9 @@ Namespace Services
         Private ReadOnly _refresher As ProductionRefresher
         Private ReadOnly _announcements As AnnouncementService
         Private ReadOnly _updates As UpdateService
+        Private ReadOnly _remoteConfig As RemoteConfigService
+        Private ReadOnly _commands As RemoteCommandService
+        Private ReadOnly _store As PreferencesStore
         Private ReadOnly _mode As AppMode
         Private ReadOnly _services As IServiceProvider
         Private ReadOnly _logger As ILogger
@@ -61,8 +64,12 @@ Namespace Services
 
         Public Sub New(settings As IOptionsMonitor(Of StatusSettings), jde As IOptionsMonitor(Of JdeSettings), identity As DeviceIdentity,
                        refresher As ProductionRefresher, announcements As AnnouncementService, updates As UpdateService, mode As AppMode,
+                       remoteConfig As RemoteConfigService, commands As RemoteCommandService, store As PreferencesStore,
                        services As IServiceProvider, logger As ILogger(Of ScreenReporter))
             _updates = updates
+            _remoteConfig = remoteConfig
+            _commands = commands
+            _store = store
             _settings = settings
             _jde = jde
             _identity = identity
@@ -75,6 +82,9 @@ Namespace Services
                 .Timeout = TimeSpan.FromSeconds(20)}
             _http.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("DashboardMetas", AppVersion()))
             _settings.OnChange(Sub(s, name) Wake())
+            ' The panel waits for these: report right away
+            AddHandler commands.Changed, Sub() Wake()
+            AddHandler remoteConfig.Changed, Sub() Wake()
         End Sub
 
         Public Function Status() As ReporterStatus
@@ -139,8 +149,11 @@ Namespace Services
             Dim ann = _announcements.Status()
             Dim views = _announcements.Views()
             Dim update = _updates.Status()
+            Dim config = _remoteConfig.Status()
+            Dim lastCommand = _commands.Results().FirstOrDefault()
             Return String.Join("|", _mode.IsDemo.ToString(), String.Join(",", jde), ann.Version.ToString(Globalization.CultureInfo.InvariantCulture),
-                               update.State, update.Version,
+                               update.State, update.Version, config.Revision.ToString(Globalization.CultureInfo.InvariantCulture), config.Error,
+                               If(lastCommand?.Id, ""),
                                ann.LastError, String.Join(",", views.Seen.Keys.OrderBy(Function(k) k, StringComparer.Ordinal)),
                                String.Join(",", views.Dismissed.Keys.OrderBy(Function(k) k, StringComparer.Ordinal)))
         End Function
@@ -207,6 +220,11 @@ Namespace Services
                     If doc.RootElement.TryGetProperty("update", update) AndAlso update.ValueKind = JsonValueKind.Object Then
                         _updates.Offer(update.GetProperty("manifest").GetString(), update.GetProperty("downloadUrl").GetString())
                     End If
+                    ' «Metas y turnos» (only for screens approved in the panel)
+                    Dim config As JsonElement
+                    If doc.RootElement.TryGetProperty("config", config) AndAlso config.ValueKind = JsonValueKind.String Then
+                        _remoteConfig.Offer(config.GetString())
+                    End If
                 End Using
             Catch ex As Exception When TypeOf ex Is JsonException OrElse TypeOf ex Is KeyNotFoundException OrElse TypeOf ex Is InvalidOperationException
                 _logger.LogDebug(ex, "Respuesta del panel sin actualización legible")
@@ -242,8 +260,14 @@ Namespace Services
                     .ErrorAt = If(s.HasError, ToOffset(s.LastErrorAt), Nothing)}).ToList()
             Dim ann = _announcements.Status()
             Dim views = _announcements.Views()
+            Dim areas = _store.Load().Areas.Select(Function(a) New AreaSummary With {
+                .Code = a.Code, .Name = a.DisplayName(False), .Active = a.Active, .DailyGoal = a.DailyGoal, .MonthlyGoal = a.MonthlyGoal,
+                .ShiftStart = a.ShiftStart, .ShiftEnd = a.ShiftEnd, .BreakStart = a.BreakStart, .BreakEnd = a.BreakEnd}).ToList()
 
             Return New ScreenReport With {
+                .Config = _remoteConfig.Status(),
+                .Areas = areas,
+                .Commands = _commands.Results(),
                 .DeviceId = _identity.Id,
                 .PublicKey = _identity.PublicKey,
                 .SentAt = NextSentAt(),

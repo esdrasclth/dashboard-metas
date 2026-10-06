@@ -41,15 +41,25 @@ navegador (panel)                      Vercel                                   
   verifica la firma y que la publicación sea más nueva. Lo guarda en `versiones/actual.json` y en el historial. La
   respuesta de `/api/heartbeat` le pasa a cada pantalla que le toca el manifiesto y un enlace de descarga temporal.
   Pausar, cambiar destinos o volver atrás desde la pestaña **Versiones** es otro manifiesto firmado en el navegador.
+- **Metas y turnos:** el panel firma la configuración en el navegador (`dashboardmetas-metas/1`) y `POST /api/config`
+  la verifica (firma, áreas conocidas, metas y horarios válidos con las mismas reglas de la app, revisión más nueva).
+  Se guarda en Blob privado (`metas/actual.json` + `metas/historial/`). **Nunca va en `/control.json`**, que es público:
+  la respuesta de `/api/heartbeat` la entrega solo a las pantallas **aprobadas** (`POST /api/screens`
+  `{action:"trust"}`) y solo cuando la suya no es la actual.
+- **Comandos:** firmados en el navegador (`dashboardmetas-comando/1`: id, vencimiento ≤ 60 min, destinos = ids de
+  pantalla o todas, acción). `POST /api/commands` los verifica y los agrega a `control/actual.json` (campo `commands`,
+  junto a los anuncios), así cada pantalla los recibe en su siguiente consulta (≤ 1 min) sin costo extra. Los vencidos
+  se descartan al escribir. Las pantallas devuelven el resultado en su reporte. Las versiones de la app sin comandos
+  ignoran ese campo.
 - `/control.json` es público a propósito (solo trae anuncios firmados que las pantallas muestran igual) y responde con
   ETag y `no-cache`: una pantalla sin cambios recibe 304.
 
 ## Estructura
 
 ```text
-api/        login, logout, state, publish, history, control, heartbeat, screens, release (funciones Node)
-lib/        sesión (scrypt + cookie firmada), verificación de firma, almacenamiento, pantallas, versiones
-public/     el panel (HTML, CSS, JS sin dependencias); rules.js y releases.js los comparten el panel y la API
+api/        login, logout, state, publish, history, control, heartbeat, screens, release, config, commands
+lib/        sesión (scrypt + cookie firmada), verificación de firma, almacenamiento, pantallas, versiones, remote
+public/     el panel (HTML, CSS, JS sin dependencias); rules.js, releases.js y remote.js los comparten el panel y la API
 scripts/    hash-password.mjs (contraseña), interop-check.mjs (firma compatible con la app),
             publish-version.mjs (npm run publicar-version: sube el paquete y firma la versión)
 ```
@@ -79,11 +89,12 @@ las sesiones abiertas.
 ```cmd
 npm install
 npm run typecheck
-vercel dev            :: http://localhost:3000 (usa el mismo almacén Blob: no publicar desde aquí sin querer)
+vercel dev            :: http://localhost:3000 (mismo almacén Blob, pero bajo dev/ si .env tiene STORE_PREFIX=dev/)
 ```
 
-Para `vercel dev` las variables locales van en `.env` (no versionado): `ADMIN_PASSWORD_HASH`, `SESSION_SECRET` y
-`BLOB_READ_WRITE_TOKEN`. Sin Redis, `vercel dev` guarda las pantallas en un JSON temporal
+Para `vercel dev` las variables locales van en `.env` (no versionado): `ADMIN_PASSWORD_HASH`, `SESSION_SECRET`,
+`BLOB_READ_WRITE_TOKEN` y `STORE_PREFIX=dev/`. Con el prefijo, todo lo que se escribe en local (archivo de control,
+comandos, metas, versiones) queda bajo `dev/` y las pantallas reales no lo ven. Sin Redis, `vercel dev` guarda las pantallas en un JSON temporal
 (`%TEMP%\dashboard-metas-pantallas-dev.json`); para probar, poner en la app `Status:Url` =
 `http://localhost:3000/api/heartbeat`.
 

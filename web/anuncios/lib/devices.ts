@@ -51,11 +51,37 @@ export interface DeviceReport {
   };
   /** Automatic update on this screen: "al-dia", "descargando", "lista", "instalando", "error"… */
   update: { enabled: boolean; state: string; version: string; detail?: string; at?: string };
+  /** «Metas y turnos» from the panel on this screen (revision 0 = none). */
+  config: { revision: number; appliedAt?: string; managed: string[]; error?: string };
+  /** Goals and shifts in use (configuration, not production figures). */
+  areas: AreaSummary[];
+  /** Last commands from the panel and what happened, newest first. */
+  commands: CommandResult[];
+}
+
+export interface AreaSummary {
+  code: string;
+  name: string;
+  active: boolean;
+  dailyGoal: number;
+  monthlyGoal: number;
+  shiftStart: string;
+  shiftEnd: string;
+  breakStart: string;
+  breakEnd: string;
+}
+
+export interface CommandResult {
+  id: string;
+  action: string;
+  at: string;
+  ok: boolean;
+  detail: string;
 }
 
 export interface DeviceEvent {
   at: string;
-  kind: "inicio" | "version" | "jde-error" | "jde-ok" | "anuncios-error" | "anuncios-ok" | "modo" | "nuevo" | "actualizacion" | "actualizacion-error";
+  kind: "inicio" | "version" | "jde-error" | "jde-ok" | "anuncios-error" | "anuncios-ok" | "modo" | "nuevo" | "actualizacion" | "actualizacion-error" | "metas" | "metas-error" | "comando" | "comando-error";
   text: string;
 }
 
@@ -63,6 +89,8 @@ export interface DeviceRecord {
   id: string;
   publicKey: string;
   label: string;
+  /** Approved in the panel: receives «metas y turnos» (business data). */
+  trusted?: boolean;
   firstSeen: string;
   lastSeen: string;
   report: DeviceReport;
@@ -75,6 +103,7 @@ const iso = (value: unknown): string | undefined => {
   const s = text(value, 40);
   return s && !Number.isNaN(Date.parse(s)) ? s : undefined;
 };
+const amount = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.min(value, 1e10) : 0);
 const ids = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v) => typeof v === "string").slice(0, 50).map((v) => v.slice(0, 64)) : [];
 const stamps = (value: unknown): Record<string, string> => {
@@ -94,6 +123,7 @@ function sanitize(raw: any): DeviceReport {
   const jde = raw?.jde ?? {};
   const ann = raw?.announcements ?? {};
   const upd = raw?.update ?? {};
+  const cfg = raw?.config ?? {};
   return {
     deviceId: text(raw?.deviceId, 32),
     publicKey: text(raw?.publicKey, 300),
@@ -139,6 +169,30 @@ function sanitize(raw: any): DeviceReport {
       detail: text(upd.detail, 300) || undefined,
       at: iso(upd.at),
     },
+    config: {
+      revision: Number.isSafeInteger(cfg.revision) && cfg.revision > 0 ? cfg.revision : 0,
+      appliedAt: iso(cfg.appliedAt),
+      managed: ids(cfg.managed).slice(0, 20).map((c) => c.slice(0, 8)),
+      error: text(cfg.error, 300) || undefined,
+    },
+    areas: (Array.isArray(raw?.areas) ? raw.areas : []).slice(0, 20).map((a: any) => ({
+      code: text(a?.code, 8),
+      name: text(a?.name, 80),
+      active: a?.active === true,
+      dailyGoal: amount(a?.dailyGoal),
+      monthlyGoal: amount(a?.monthlyGoal),
+      shiftStart: text(a?.shiftStart, 5),
+      shiftEnd: text(a?.shiftEnd, 5),
+      breakStart: text(a?.breakStart, 5),
+      breakEnd: text(a?.breakEnd, 5),
+    })),
+    commands: (Array.isArray(raw?.commands) ? raw.commands : []).slice(0, 10).map((c: any) => ({
+      id: text(c?.id, 64),
+      action: text(c?.action, 120),
+      at: iso(c?.at) ?? "",
+      ok: c?.ok === true,
+      detail: text(c?.detail, 300),
+    })),
   };
 }
 
@@ -212,6 +266,16 @@ export function eventsBetween(previous: DeviceReport | null, current: DeviceRepo
       revertida: `La versión ${upd.version} no arrancó bien: se volvió a la anterior`,
     };
     if (labels[upd.state]) events.push({ at, kind: upd.state === "error" || upd.state === "revertida" ? "actualizacion-error" : "actualizacion", text: labels[upd.state] });
+  }
+  const cfgBefore = previous.config ?? { revision: 0, managed: [] as string[], error: undefined };
+  const cfg = current.config;
+  if (cfg.revision !== cfgBefore.revision && cfg.revision > 0) {
+    events.push({ at, kind: "metas", text: `Metas y turnos: revisión ${cfg.revision} aplicada (${cfg.managed.length ? cfg.managed.join(", ") : "ninguna área administrada"})` });
+  }
+  if (cfg.error && cfg.error !== cfgBefore.error) events.push({ at, kind: "metas-error", text: `Metas y turnos rechazadas: ${cfg.error}` });
+  const known = new Set((previous.commands ?? []).map((c) => c.id));
+  for (const c of [...current.commands].reverse()) {
+    if (!known.has(c.id)) events.push({ at, kind: c.ok ? "comando" : "comando-error", text: c.ok ? `Comando: ${c.action}${c.detail ? ` (${c.detail})` : ""}` : `Comando sin hacer: ${c.action} · ${c.detail}` });
   }
   const annBefore = previous.announcements.lastError ?? "";
   const annNow = current.announcements.lastError ?? "";

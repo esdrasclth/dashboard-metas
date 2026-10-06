@@ -47,9 +47,14 @@ Namespace Services
         Private ReadOnly _announcements As AnnouncementService
         Private ReadOnly _reporter As ScreenReporter
         Private ReadOnly _updates As UpdateService
+        Private ReadOnly _remoteConfig As RemoteConfigService
+        Private ReadOnly _commands As RemoteCommandService
 
         Public Sub New(jde As IOptionsMonitor(Of JdeSettings), dashboard As IOptionsMonitor(Of DashboardSettings), mode As AppMode, paths As AppPaths,
-                       announcements As AnnouncementService, reporter As ScreenReporter, updates As UpdateService)
+                       announcements As AnnouncementService, reporter As ScreenReporter, updates As UpdateService,
+                       remoteConfig As RemoteConfigService, commands As RemoteCommandService)
+            _remoteConfig = remoteConfig
+            _commands = commands
             _updates = updates
             _announcements = announcements
             _reporter = reporter
@@ -146,6 +151,17 @@ Namespace Services
             Dim update = _updates.Status()
             items.Add(New DiagnosticItem(panel, "Actualizaciones", $"{If(update.Enabled, "automáticas", "apagadas")} · versión {UpdateService.CurrentVersion.ToString(3)} · {update.State}{If(String.IsNullOrEmpty(update.Version), "", " " & update.Version)}{If(String.IsNullOrEmpty(update.Detail), "", " · " & update.Detail)}",
                                          If(update.State = "error" OrElse update.State = "revertida", DiagnosticLevel.Error, DiagnosticLevel.Ok)))
+            Dim config = _remoteConfig.Status()
+            items.Add(New DiagnosticItem(panel, "Metas y turnos",
+                If(Not String.IsNullOrEmpty(config.Error), config.Error,
+                   If(config.Revision = 0, "los de esta pantalla (el panel no ha enviado ninguna)",
+                      $"revisión {config.Revision} del panel{If(config.AppliedAt.HasValue, " (" & config.AppliedAt.Value.ToString("dd/MM HH:mm") & ")", "")} · administra {If(config.Managed.Count = 0, "ninguna área", String.Join(", ", config.Managed))}")),
+                If(String.IsNullOrEmpty(config.Error), DiagnosticLevel.Ok, DiagnosticLevel.Error)))
+            Dim last = _commands.Results().FirstOrDefault()
+            If last IsNot Nothing Then
+                items.Add(New DiagnosticItem(panel, "Último comando", $"{last.Action} · {last.At:dd/MM HH:mm}{If(last.Ok, "", " · NO SE PUDO: " & last.Detail)}",
+                                             If(last.Ok, DiagnosticLevel.Ok, DiagnosticLevel.Error)))
+            End If
             items.Add(New DiagnosticItem(panel, "Carpeta de la app", If(IO.Path.GetDirectoryName(Environment.ProcessPath), "")))
 
             Return items

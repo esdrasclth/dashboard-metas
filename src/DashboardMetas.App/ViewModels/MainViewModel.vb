@@ -42,12 +42,14 @@ Namespace ViewModels
 
         Public Sub New(refresher As ProductionRefresher, store As PreferencesStore, dashboard As IOptionsMonitor(Of DashboardSettings),
                        jde As IOptionsMonitor(Of JdeSettings), mode As AppMode, dialogs As IDialogService, clock As IClock,
-                       announcements As AnnouncementsViewModel, announcementService As AnnouncementService, logger As ILogger(Of MainViewModel))
+                       announcements As AnnouncementsViewModel, announcementService As AnnouncementService, remoteConfig As RemoteConfigService,
+                       logger As ILogger(Of MainViewModel))
             Me.Announcements = announcements
             ' The service talks from a background thread: the screen is updated on the UI thread
             Dim ui = Dispatcher.CurrentDispatcher
             AddHandler announcementService.Changed, Sub() ui.BeginInvoke(Sub() announcements.Refresh(_texts))
             AddHandler announcementService.PreviewRequested, Sub(sender, a) ui.BeginInvoke(Sub() announcements.ShowPreview(a))
+            AddHandler remoteConfig.Changed, Sub() ui.BeginInvoke(AddressOf ReloadAreas)
             _refresher = refresher
             _store = store
             _dashboard = dashboard
@@ -723,8 +725,56 @@ Namespace ViewModels
                 Return
             End If
             ' The overview is the alternative to rotation: it does not rotate
-            If _prefs.AutoRotate AndAlso Not IsOverview AndAlso Not IsBusy AndAlso now >= _nextRotate Then RotateArea(+1)
+            If _prefs.AutoRotate AndAlso Not IsOverview AndAlso Not IsBusy AndAlso now >= _nextRotate AndAlso now >= _holdUntil Then RotateArea(+1)
         End Sub
+
+        ''' <summary>«Mostrar … durante N min» from the panel: the rotation waits until then.</summary>
+        Private _holdUntil As Date = Date.MinValue
+
+        ''' <summary>New goals or shifts from the panel: only the areas change, the view stays where it is.</summary>
+        Private Sub ReloadAreas()
+            If _prefs Is Nothing Then Return
+            _prefs.Areas = _store.Load().Areas
+            Render()
+        End Sub
+
+        ''' <summary>
+        ''' A command from the panel (UI thread). «reiniciar» is handled by <see cref="RemoteCommandService"/>.
+        ''' Returns whether it was done and, if not, why.
+        ''' </summary>
+        Public Function ExecuteRemote(command As Core.Remote.RemoteCommand) As (Ok As Boolean, Detail As String)
+            If _prefs Is Nothing Then Return (False, "La pantalla todavía está abriendo.")
+            Select Case command.Action
+                Case Core.Remote.RemoteCommand.ActionRefresh
+                    If _refresher.IsBusy Then Return (True, "Ya estaba actualizando.")
+                    Dim ignored = RefreshAsync(allowPrompt:=False)
+                    Return (True, String.Empty)
+
+                Case Core.Remote.RemoteCommand.ActionShow
+                    Dim now = _clock.Now
+                    Select Case command.View
+                        Case Core.Remote.RemoteCommand.ViewFloat
+                            SetFloat(True)
+                        Case Core.Remote.RemoteCommand.ViewOverview
+                            SetOverview(True)
+                        Case Core.Remote.RemoteCommand.ViewArea
+                            Dim area = _prefs.FindArea(command.Area)
+                            If area Is Nothing Then Return (False, $"Esta pantalla no tiene el área {command.Area}.")
+                            _prefs.ShowOverview = False
+                            SetArea(area.Code)
+                        Case Core.Remote.RemoteCommand.ViewRotation
+                            _holdUntil = Date.MinValue
+                            If _prefs.ShowOverview Then SetOverview(False)
+                            _nextRotate = now
+                            Return (True, If(_prefs.AutoRotate, String.Empty, "El cambio automático está apagado en esta pantalla."))
+                    End Select
+                    _holdUntil = If(command.HoldMinutes > 0, now.AddMinutes(command.HoldMinutes), Date.MinValue)
+                    Return (True, If(command.HoldMinutes > 0 AndAlso Not _prefs.AutoRotate, "El cambio automático está apagado: se queda así hasta que alguien la cambie.", String.Empty))
+
+                Case Else
+                    Return (False, "Acción no disponible en esta versión.")
+            End Select
+        End Function
 
         ''' <summary>
         ''' Queries the three sources starting with the one on screen; the screen is repainted as soon as that

@@ -151,7 +151,7 @@ const parse = <T>(value: string | null): T | null => {
   }
 };
 
-export type SaveResult = { ok: true } | { ok: false; status: number; error: string };
+export type SaveResult = { ok: true; record: DeviceRecord } | { ok: false; status: number; error: string };
 
 /** Stores a verified report: rate limit, device cap, anti-replay, history of changes and announcement views. */
 export async function saveReport(report: DeviceReport, at: string): Promise<SaveResult> {
@@ -171,6 +171,7 @@ export async function saveReport(report: DeviceReport, at: string): Promise<Save
     id: report.deviceId,
     publicKey: report.publicKey,
     label: previous?.label ?? "",
+    trusted: previous?.trusted === true,
     firstSeen: previous?.firstSeen ?? at,
     lastSeen: at,
     report,
@@ -185,7 +186,7 @@ export async function saveReport(report: DeviceReport, at: string): Promise<Save
   for (const [id, when] of Object.entries(report.announcements.dismissed)) {
     if (!previous?.report.announcements.dismissed[id]) await db.hsetnx(`dm:dis:${id}`, report.deviceId, when, VIEWS_TTL);
   }
-  return { ok: true };
+  return { ok: true, record };
 }
 
 export interface ScreenSummary extends DeviceRecord {
@@ -224,6 +225,17 @@ export async function renameScreen(id: string, label: string): Promise<boolean> 
   if (!record) return false;
   record.label = label.trim().slice(0, 60);
   await db.set(`dm:dev:${id}`, JSON.stringify(record));
+  return true;
+}
+
+/** Approves a screen (or withdraws it): approved screens receive «metas y turnos». */
+export async function trustScreen(id: string, trusted: boolean): Promise<boolean> {
+  const db = store();
+  const record = parse<DeviceRecord>(await db.get(`dm:dev:${id}`));
+  if (!record) return false;
+  record.trusted = trusted;
+  await db.set(`dm:dev:${id}`, JSON.stringify(record));
+  await db.lpushTrim(`dm:ev:${id}`, [JSON.stringify({ at: new Date().toISOString(), kind: "metas", text: trusted ? "Aprobada en el panel: recibe metas y turnos" : "Ya no recibe metas y turnos del panel" })], MAX_EVENTS);
   return true;
 }
 

@@ -7,6 +7,7 @@ import { importPrivateKeyPem, signFeed } from "./signer.js";
 import { forgetKey, loadKey, saveKey } from "./keystore.js";
 import { initScreens, load as loadScreens, rerender as rerenderScreens, screensData } from "./screens.js";
 import { initVersions, load as loadVersions } from "./versions.js";
+import { initRemote, load as loadMetas, refreshData, restart, setTrusted, showOn } from "./remote-ui.js";
 
 const $ = (id) => document.getElementById(id);
 const DRAFT_KEY = "anuncios.borrador.v1";
@@ -327,7 +328,7 @@ function render() {
 }
 
 function showView(view) {
-  state.view = ["pantallas", "versiones"].includes(view) ? view : "anuncios";
+  state.view = ["pantallas", "metas", "versiones"].includes(view) ? view : "anuncios";
   try {
     localStorage.setItem(VIEW_KEY, state.view);
   } catch {
@@ -336,9 +337,11 @@ function showView(view) {
   $("view-anuncios").hidden = state.view !== "anuncios";
   $("view-pantallas").hidden = state.view !== "pantallas";
   $("view-versiones").hidden = state.view !== "versiones";
+  $("view-metas").hidden = state.view !== "metas";
   for (const tab of document.querySelectorAll(".view-tab")) tab.setAttribute("aria-selected", String(tab.dataset.view === state.view));
   if (state.view === "pantallas") loadScreens().catch((e) => toast(e.message, "error"));
   if (state.view === "versiones") loadVersions().catch((e) => toast(e.message, "error"));
+  if (state.view === "metas") loadMetas().catch((e) => toast(e.message, "error"));
 }
 
 // ---------------------------------------------------------------- editor
@@ -709,7 +712,8 @@ async function startPanel() {
 }
 
 function wire() {
-  initScreens({ api, toast, confirmDialog, publishedVersion: () => state.published?.version ?? 0 });
+  initScreens({ api, toast, confirmDialog, publishedVersion: () => state.published?.version ?? 0, commands: { showOn, refreshData, restart, setTrusted } });
+  initRemote({ api, toast, confirmDialog, key: () => state.key, openKeyDialog: () => $("key-dialog").showModal(), screens: screensData, reloadScreens: loadScreens });
   initVersions({ api, toast, confirmDialog, key: () => state.key, openKeyDialog: () => $("key-dialog").showModal() });
   for (const tab of document.querySelectorAll(".view-tab")) tab.addEventListener("click", () => showView(tab.dataset.view));
   $("login-form").addEventListener("submit", async (event) => {
@@ -860,6 +864,7 @@ function wire() {
     if ($("app").hidden || document.visibilityState !== "visible") return;
     if (state.view === "pantallas") loadScreens().catch(() => {});
     if (state.view === "versiones") loadVersions().catch(() => {});
+    if (state.view === "metas") loadMetas().catch(() => {});
   }, 30_000);
 }
 

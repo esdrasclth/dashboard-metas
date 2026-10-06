@@ -21,6 +21,7 @@
     "api/**/*.ts",
     "lib/**/*.ts",
     "public/rules.js",
-    "public/releases.js"
+    "public/releases.js",
+    "public/remote.js"
   ]
 }

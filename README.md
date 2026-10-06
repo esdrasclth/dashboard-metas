@@ -45,6 +45,7 @@ cierre, la vista general de todas las áreas y el acumulado del mes contra su me
 | **Custom Float** | Órdenes FIN abiertas por estatus (F4801) valuadas a W01: total, dónde se acumula, línea principal, piezas sin precio, y gráfica por estatus (apilada por línea de producto) o por línea |
 | **Anuncios remotos** | Publicas un archivo firmado y las pantallas muestran el anuncio como tarjeta o franja, por fechas y por PC o planta. Nadie más puede publicar: solo se aceptan archivos firmados con tu clave |
 | **Estado de las pantallas** | Cada pantalla reporta al panel si está encendida, qué muestra, si JDE responde, su versión y qué anuncios vio o cerró: ves desde el celular qué TV está caída y «visto en 5 de 6 pantallas» |
+| **Control remoto** | Desde el panel: metas y turnos para todas las TVs, «mostrar el Float durante 30 min», actualizar datos, reiniciar la app y actualizaciones automáticas, todo firmado con tu clave |
 | **Datos** | Tabla día por día, copiable a Excel; en el Float, estilo por estilo |
 | **Diagnóstico** | Proceso de 32 bits, DSN y driver ODBC, y prueba de las cuatro consultas sin guardar nada |
 | **Modo demo** | `--demo` corre todo sin AS400, con datos inventados, fallas simuladas y hora simulada |
@@ -131,7 +132,7 @@ cada 5 min ──> una conexión ODBC (DSN de 32 bits, IBM i Access) ──> 4 c
 | Configuración y DI | Microsoft.Extensions.Hosting |
 | Logs | Serilog a archivo diario |
 | Seguridad | DPAPI (`ProtectedData`, alcance usuario); anuncios firmados con ECDSA P-256 |
-| Pruebas | xUnit en VB, 179 pruebas |
+| Pruebas | xUnit en VB, 186 pruebas |
 | Publicación | Un solo `.exe` win-x86 self-contained, portable, sin administrador |
 
 ## Requisitos
@@ -376,6 +377,34 @@ La versión anterior queda como `DashboardMetas.exe.old` hasta la siguiente actu
 carpeta de la app debe ser del usuario: en `Program Files` no se puede escribir y la pantalla avisa en el panel. Se apaga
 por PC en Configuración › Anuncios › «Actualizaciones automáticas».
 
+### Metas, turnos y comandos desde el panel
+
+**Metas y turnos.** En la pestaña **Metas y turnos** marcas las áreas que administra el panel y escribes su meta
+diaria, meta mensual, turno y pausa. Con **Firmar y publicar** llegan a todas las pantallas **aprobadas** en su siguiente
+reporte (5 min o menos). En cada TV esas áreas quedan bloqueadas en Configuración › Áreas y metas, con un aviso de que
+las administra el panel. Los nombres y qué áreas se ven siguen siendo de cada pantalla. Publicar sin ninguna área marcada
+devuelve el control a cada pantalla.
+
+- Solo las pantallas que **apruebas** (Metas y turnos › «Aprobar», o en el detalle de cada pantalla) reciben las metas.
+  Viajan en la respuesta al reporte, nunca en el archivo público de anuncios, así que un equipo desconocido no puede
+  leerlas.
+- Van firmadas con la clave, igual que los anuncios. La app comprueba la firma, que las áreas y horas sean válidas y que
+  la revisión sea más nueva que la que ya tiene.
+
+**Comandos.** En **Pantallas** (para todas a la vez) o en el detalle de una pantalla:
+
+| Comando | Qué hace |
+| --- | --- |
+| **Mostrar…** | Cambia al Float, a la vista general o a un área. Opcionalmente la deja **sin rotar** 15 min a 4 h y después vuelve sola a la rotación (útil en una reunión). «Volver a la rotación normal» lo deshace |
+| **Actualizar datos** | Consulta JDE ahora, sin esperar los 5 minutos |
+| **Reiniciar la app** | Cierra y vuelve a abrir Dashboard Metas (unos segundos) |
+
+Llegan en **1 minuto o menos**: viajan en el mismo archivo que los anuncios, que cada pantalla consulta cada minuto. Van
+firmados, valen 10 minutos y cada pantalla ejecuta cada uno **una sola vez**: un «Reiniciar» nunca se repite al volver
+a abrir. El resultado (hecho o por qué no) aparece en el detalle de la pantalla, en «Últimos comandos».
+
+Una PC en modo demo recibe los comandos y anuncios del panel, salvo que tenga activado «Simular anuncios».
+
 ### La clave
 
 `anuncios clave-nueva` crea la clave en `Documentos\DashboardMetas-Anuncios\`: `clave-privada-anuncios.pem` (la que firma,
@@ -393,6 +422,8 @@ vieja. La clave privada también se puede indicar con `--clave` o con la variabl
   ultimos_datos.json     últimos datos recibidos (ultimos_datos_demo.json en modo demo)
   anuncios.json          último archivo de anuncios válido, y los vistos y cerrados en esta PC (anuncios_demo.json en demo)
   equipo.key             clave propia de esta pantalla para firmar sus reportes al panel (DPAPI)
+  metas-panel.json       metas y turnos recibidos del panel (firmados; se vuelven a comprobar al abrir)
+  comandos.json          comandos del panel ya ejecutados (para no repetirlos) y sus resultados
   clave_jde.dat          contraseña cifrada con DPAPI (clave_demo.dat en modo demo)
   logs\                  un log por día, 60 días
 ```

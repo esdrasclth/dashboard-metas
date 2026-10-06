@@ -1,12 +1,14 @@
 import { MAX_REPORT_BYTES, verifyHeartbeat } from "../lib/devices.js";
 import { offerFor } from "../lib/releases.js";
+import { currentConfig } from "../lib/remote.js";
 import { saveReport } from "../lib/screens.js";
 
 /**
  * POST from each Dashboard Metas screen every few minutes: its status, signed with its own device key
  * (header x-dm-signature). Public on purpose (the screens have no session); the signature ties every report to
  * one screen, and the store rate-limits and caps them. The reply carries the server time and, when there is a
- * version for this screen, the signed manifest with a temporary download link.
+ * version for this screen, the signed manifest with a temporary download link; for approved screens, the signed
+ * «metas y turnos» when theirs is not the current one.
  */
 export async function POST(request: Request): Promise<Response> {
   const headers = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
@@ -29,7 +31,17 @@ export async function POST(request: Request): Promise<Response> {
         console.error("No se pudo preparar la actualización", error);
       }
     }
-    return reply(200, { ok: true, serverTime: at, update });
+    // «Metas y turnos»: only to screens approved in the panel, and only when theirs is not the current one
+    let config: string | null = null;
+    if (saved.record.trusted) {
+      try {
+        const current = await currentConfig();
+        if (current && current.config.revision !== check.report.config.revision) config = current.text;
+      } catch (error) {
+        console.error("No se pudieron leer las metas", error);
+      }
+    }
+    return reply(200, { ok: true, serverTime: at, update, config });
   } catch (error) {
     console.error(error);
     return reply(503, { error: "Servicio no disponible." });

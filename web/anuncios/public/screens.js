@@ -5,9 +5,12 @@ const $ = (id) => document.getElementById(id);
 const pad = (n) => String(n).padStart(2, "0");
 
 const VIEW_NAME = { area: "", general: "Vista general", float: "Custom Float" };
-const EVENT_TONE = { "jde-error": "bad", "anuncios-error": "bad", "jde-ok": "good", "anuncios-ok": "good" };
+const EVENT_TONE = {
+  "jde-error": "bad", "anuncios-error": "bad", "metas-error": "bad", "comando-error": "bad", "actualizacion-error": "bad",
+  "jde-ok": "good", "anuncios-ok": "good", "comando": "good",
+};
 
-let deps = null; // { api, toast, confirmDialog, publishedVersion }
+let deps = null; // { api, toast, confirmDialog, publishedVersion, commands: { showOn, refreshData, restart, setTrusted } }
 let data = { configured: true, screens: [], views: {}, onlineSeconds: 720, serverTime: null };
 let selected = null;
 
@@ -41,6 +44,8 @@ function compareVersions(a, b) {
 
 const latestVersion = () => data.screens.map((s) => s.report.appVersion).filter(Boolean).sort(compareVersions).at(-1) ?? "";
 const nameOf = (s) => s.label || s.report.machine || s.id;
+/** Demo mode with invented announcements (Demo:SimulateAnnouncements): nothing from the panel reaches it. */
+const simulated = (r) => r.mode === "demo" && String(r.announcements.feedUrl ?? "").startsWith("DEMO");
 
 /** online / warn (online with a problem) / off, and the problem in words. */
 export function healthOf(screen, publishedVersion) {
@@ -51,6 +56,7 @@ export function healthOf(screen, publishedVersion) {
   if (r.mode === "real" && failing.length) problems.push(r.jde.needsPassword ? "Falta la contraseña de JDE" : `Sin JDE: ${failing.join(", ")}`);
   // In demo mode the screen reads simulated announcements: nothing to compare with what is published
   if (r.mode === "demo") problems.push("En modo demo");
+  if (simulated(r)) { /* invented announcements: nothing to compare */ }
   else if (!r.announcements.feedUrl) problems.push("Anuncios sin configurar");
   else if (r.announcements.lastError) problems.push(`Anuncios: ${r.announcements.lastError}`);
   else if (publishedVersion && r.announcements.version && r.announcements.version < publishedVersion) problems.push("Anuncios atrasados");
@@ -89,6 +95,7 @@ function render() {
     const head = el("div", { className: "screen-head" }, dot, el("span", { className: "screen-name", textContent: nameOf(s) }));
     if (r.mode === "demo") head.append(el("span", { className: "badge badge-demo", textContent: "DEMO" }));
     if (latest && compareVersions(r.appVersion, latest) < 0) head.append(el("span", { className: "badge badge-old", textContent: "Versión anterior" }));
+    if (s.trusted) head.append(el("span", { className: "badge badge-trusted", textContent: "Aprobada", title: "Recibe metas y turnos del panel" }));
 
     const sub = el("div", { className: "screen-sub", textContent: `${s.label ? r.machine + " · " : ""}planta ${r.branch || "—"} · versión ${r.appVersion}` });
 
@@ -97,7 +104,7 @@ function render() {
     const jdeText = r.mode === "demo" ? "Modo demo (datos inventados)"
       : failing.length ? (r.jde.needsPassword ? "Falta la contraseña" : `Sin conexión: ${failing.map((x) => x.name).join(", ")}`)
       : "Conectado";
-    const annText = r.mode === "demo" ? "Simulados (modo demo)"
+    const annText = simulated(r) ? "Simulados (modo demo)"
       : !r.announcements.feedUrl ? "Sin configurar"
       : r.announcements.lastError ? r.announcements.lastError
       : publishedVersion && r.announcements.version < publishedVersion ? "Todavía con la versión anterior"
@@ -106,7 +113,7 @@ function render() {
     const rows = el("div", { className: "screen-rows" },
       row("Mostrando", `${showing}${r.screen.fullScreen ? " · pantalla completa" : ""}${r.screen.autoRotate ? " · rotando" : ""}`),
       row("JDE", jdeText, r.mode === "demo" ? "warn-text" : failing.length ? "danger-text" : "ok-text"),
-      row("Anuncios", annText, r.mode === "demo" ? "warn-text" : !r.announcements.feedUrl || r.announcements.lastError ? "danger-text" : annText.startsWith("Todavía") ? "warn-text" : "ok-text"),
+      row("Anuncios", annText, simulated(r) ? "warn-text" : !r.announcements.feedUrl || r.announcements.lastError ? "danger-text" : annText.startsWith("Todavía") ? "warn-text" : "ok-text"),
     );
 
     const foot = el("div", { className: "screen-foot" },
@@ -149,12 +156,25 @@ function fillDetail(id) {
     ["Mostrando", r.screen.view === "area" ? `${r.screen.areaName} (${r.screen.area})` : VIEW_NAME[r.screen.view] ?? r.screen.view],
     ...r.jde.sources.map((x) => [`JDE · ${x.name}`, x.error ? `ERROR ${x.errorAt ? stamp(x.errorAt) : ""}: ${x.error}` : x.lastSuccess ? `Correcto (${stamp(x.lastSuccess)})` : "Sin consultar"]),
     ["Anuncios", r.announcements.feedUrl ? `versión ${r.announcements.version || "—"}${r.announcements.lastCheck ? ` · consultado ${stamp(r.announcements.lastCheck)}` : ""}${r.announcements.lastError ? ` · ERROR: ${r.announcements.lastError}` : ""}` : "Sin dirección configurada"],
+    ["Metas y turnos", !s.trusted ? "No aprobada: usa las suyas"
+      : !r.config ? "Su versión no recibe metas del panel"
+      : r.config.error ? `Rechazó las del panel: ${r.config.error}`
+      : r.config.revision ? `Revisión ${r.config.revision} del panel (${r.config.managed.length ? r.config.managed.join(", ") : "ninguna área administrada"})`
+      : "Aprobada; todavía sin metas del panel"],
     ["Encendida desde", stamp(r.startedAt)],
     ["Primer reporte", stamp(s.firstSeen)],
     ["Último reporte", `${stamp(s.lastSeen)} (${ago(s.lastSeen)})`],
     ["Id", s.id],
   ];
   $("screen-facts").replaceChildren(...facts.flatMap(([k, v]) => [el("dt", { textContent: k }), el("dd", { textContent: v })]));
+  $("screen-trust").textContent = s.trusted ? "Quitar aprobación" : "Aprobar (recibe metas)";
+  const commands = $("screen-commands");
+  commands.replaceChildren();
+  const results = r.commands ?? [];
+  $("screen-commands-box").hidden = !results.length;
+  for (const c of results) {
+    commands.append(el("li", { className: c.ok ? "good" : "bad" }, el("span", { className: "when", textContent: stamp(c.at) }), c.ok ? `${c.action}${c.detail ? ` · ${c.detail}` : ""}` : `${c.action} · NO SE HIZO: ${c.detail}`));
+  }
   const events = $("screen-events");
   events.replaceChildren();
   if (!s.events.length) events.append(el("li", {}, el("span", { className: "when", textContent: "—" }), "Sin eventos todavía."));
@@ -212,8 +232,27 @@ export async function load() {
 
 export const screensData = () => data;
 
+const selectedScreen = () => data.screens.find((x) => x.id === selected);
+
 export function initScreens(dependencies) {
   deps = dependencies;
+  const forSelected = (action) => () => {
+    const s = selectedScreen();
+    if (s) action([s.id], `«${nameOf(s)}»`);
+  };
+  $("screen-show").addEventListener("click", forSelected(deps.commands.showOn));
+  $("screen-refresh-data").addEventListener("click", forSelected(deps.commands.refreshData));
+  $("screen-restart").addEventListener("click", forSelected(deps.commands.restart));
+  $("screen-trust").addEventListener("click", async () => {
+    const s = selectedScreen();
+    if (!s) return;
+    try {
+      await deps.commands.setTrusted(s.id, !s.trusted);
+      deps.toast(s.trusted ? "Ya no recibe metas y turnos." : "Aprobada: recibe metas y turnos en su siguiente reporte.", "ok");
+    } catch (error) {
+      deps.toast(error.message, "error");
+    }
+  });
   $("screens-refresh").addEventListener("click", () => load().catch((e) => deps.toast(e.message, "error")));
   $("screen-rename").addEventListener("click", rename);
   $("screen-remove").addEventListener("click", remove);

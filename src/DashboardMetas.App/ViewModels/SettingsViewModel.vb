@@ -34,6 +34,9 @@ Namespace ViewModels
 
         Public ReadOnly Property Code As String
 
+        ''' <summary>Goals and shift come from the panel: shown locked.</summary>
+        Public Property IsManaged As Boolean
+
         Public ReadOnly Property SourceText As String
             Get
                 Select Case _original.Source()
@@ -185,13 +188,15 @@ Namespace ViewModels
         Private ReadOnly _reporter As ScreenReporter
         Private ReadOnly _updateSettings As IOptionsMonitor(Of UpdateSettings)
         Private ReadOnly _updates As UpdateService
+        Private ReadOnly _remoteConfig As RemoteConfigService
         Private _prefs As DashboardPreferences
 
         Public Sub New(store As PreferencesStore, writer As UserSettingsWriter, credentials As ICredentialStore, dialogs As IDialogService, mode As AppMode,
                        jde As IOptionsMonitor(Of JdeSettings), dashboard As IOptionsMonitor(Of DashboardSettings), demo As IOptionsMonitor(Of DemoSettings),
                        announcementSettings As IOptionsMonitor(Of AnnouncementSettings), announcements As AnnouncementService,
                        statusSettings As IOptionsMonitor(Of StatusSettings), reporter As ScreenReporter,
-                       updateSettings As IOptionsMonitor(Of UpdateSettings), updates As UpdateService)
+                       updateSettings As IOptionsMonitor(Of UpdateSettings), updates As UpdateService, remoteConfig As RemoteConfigService)
+            _remoteConfig = remoteConfig
             _updateSettings = updateSettings
             _updates = updates
             _statusSettings = statusSettings
@@ -519,7 +524,7 @@ Namespace ViewModels
         Private Sub CopyShiftToAll()
             If Areas.Count = 0 Then Return
             Dim first = Areas(0)
-            For Each row In Areas.Skip(1)
+            For Each row In Areas.Skip(1).Where(Function(r) Not r.IsManaged)
                 row.ShiftStart = first.ShiftStart
                 row.ShiftEnd = first.ShiftEnd
                 row.BreakStart = first.BreakStart
@@ -528,6 +533,17 @@ Namespace ViewModels
         End Sub
 
         Public ReadOnly Property Areas As New ObservableCollection(Of AreaRowViewModel)()
+
+        Private _managedNotice As String = String.Empty
+        ''' <summary>Which areas the panel manages (empty = none).</summary>
+        Public Property ManagedNotice As String
+            Get
+                Return _managedNotice
+            End Get
+            Private Set(value As String)
+                SetProperty(_managedNotice, value)
+            End Set
+        End Property
         Public ReadOnly Property FailingSourceOptions As IReadOnlyList(Of String) = {"", "Y1", "Estaciones", "Embarques", "Float"}
 
         Private Sub Load()
@@ -538,9 +554,13 @@ Namespace ViewModels
             RotateSeconds = _prefs.RotateSeconds.ToString(CultureInfo.InvariantCulture)
             FloatInRotation = _prefs.FloatInRotation
             Areas.Clear()
+            Dim managed = _remoteConfig.Current()
             For Each area In _prefs.Areas
-                Areas.Add(New AreaRowViewModel(area))
+                Areas.Add(New AreaRowViewModel(area) With {.IsManaged = managed IsNot Nothing AndAlso managed.IsManaged(area.Code)})
             Next
+            Dim codes = Areas.Where(Function(r) r.IsManaged).Select(Function(r) r.Code).ToList()
+            ManagedNotice = If(codes.Count = 0, String.Empty,
+                $"Las metas y turnos de {String.Join(", ", codes)} los administra el panel (revisión {managed.Revision}): aquí se ven pero no se cambian. Nombres y visibilidad siguen siendo de esta pantalla.")
             LoadConnection(_jde.CurrentValue, _dashboard.CurrentValue, _demo.CurrentValue)
             LoadAnnouncements(_announcementSettings.CurrentValue)
             LoadStatus(_statusSettings.CurrentValue)

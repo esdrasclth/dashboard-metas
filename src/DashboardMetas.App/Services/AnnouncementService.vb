@@ -81,17 +81,25 @@ Namespace Services
             End Get
         End Property
 
-        ''' <summary>The center of the current mode (created and loaded on first use or when the mode changes).</summary>
+        ''' <summary>
+        ''' The center of the current source (created and loaded on first use or when it changes): invented announcements
+        ''' in demo mode with Demo:SimulateAnnouncements, otherwise the panel's control file (also in demo mode, so a demo
+        ''' screen still gets the panel's announcements and commands).
+        ''' </summary>
         Private Function Center() As AnnouncementCenter
             SyncLock _gate
-                Dim demo = _mode.IsDemo
+                Dim demo = _mode.IsDemo AndAlso _demoSource.IsConfigured
                 If _center Is Nothing OrElse _centerIsDemo <> demo Then
-                    If _center IsNot Nothing Then RemoveHandler _center.Changed, AddressOf OnCenterChanged
+                    If _center IsNot Nothing Then
+                        RemoveHandler _center.Changed, AddressOf OnCenterChanged
+                        RemoveHandler _center.FileReceived, AddressOf OnFileReceived
+                    End If
                     Dim source As IAnnouncementSource = If(demo, CType(_demoSource, IAnnouncementSource), _feedClient)
                     Dim store As New FileAnnouncementStateStore(Path.Combine(_paths.DataFolder, If(demo, "anuncios_demo.json", "anuncios.json")))
                     _center = New AnnouncementCenter(source, store, _logger)
                     _centerIsDemo = demo
                     AddHandler _center.Changed, AddressOf OnCenterChanged
+                    AddHandler _center.FileReceived, AddressOf OnFileReceived
                     _center.Load()
                 End If
                 Return _center
@@ -100,6 +108,13 @@ Namespace Services
 
         Private Sub OnCenterChanged(sender As Object, e As EventArgs)
             RaiseEvent Changed(Me, EventArgs.Empty)
+        End Sub
+
+        ''' <summary>A new control file from the panel (also carries the remote commands). Background thread.</summary>
+        Public Event FileReceived As EventHandler(Of String)
+
+        Private Sub OnFileReceived(sender As Object, content As String)
+            RaiseEvent FileReceived(Me, content)
         End Sub
 
         Public Function Audience() As AnnouncementAudience

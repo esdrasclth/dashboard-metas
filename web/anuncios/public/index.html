@@ -43,6 +43,7 @@
       <nav class="views" role="tablist" aria-label="Secciones">
         <button role="tab" class="view-tab" data-view="anuncios" aria-selected="true">Anuncios</button>
         <button role="tab" class="view-tab" data-view="pantallas" aria-selected="false">Pantallas <span id="screens-alert" class="alert-dot" hidden></span></button>
+        <button role="tab" class="view-tab" data-view="metas" aria-selected="false">Metas<span class="tab-long"> y turnos</span></button>
         <button role="tab" class="view-tab" data-view="versiones" aria-selected="false">Versiones</button>
       </nav>
       <div class="topbar-actions">
@@ -238,6 +239,55 @@
       </section>
     </main>
 
+    <!-- ============ Goals and shifts ============ -->
+    <main class="page" id="view-metas" hidden>
+      <section class="card status" aria-labelledby="metas-title">
+        <div class="status-main">
+          <h1 id="metas-title" class="status-title">Metas y turnos</h1>
+          <p class="status-line" id="metas-summary">Cargando…</p>
+        </div>
+        <div class="status-actions">
+          <button id="metas-reset" class="btn" type="button">Descartar cambios</button>
+          <button id="metas-publish" class="btn btn-primary" type="button">Firmar y publicar</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="metas-editor-title">
+        <div class="section-head">
+          <h2 id="metas-editor-title">Áreas</h2>
+          <span class="muted">Marca las áreas que administra el panel; las demás quedan como cada pantalla las tenga.</span>
+        </div>
+        <div class="table-scroll">
+          <table class="metas-table">
+            <thead>
+              <tr>
+                <th title="Administrar desde el panel">Panel</th>
+                <th>Área</th>
+                <th class="num">Meta diaria US$</th>
+                <th class="num">Meta mensual US$</th>
+                <th>Inicio</th>
+                <th>Fin</th>
+                <th>Pausa de</th>
+                <th>a</th>
+              </tr>
+            </thead>
+            <tbody id="metas-rows"></tbody>
+          </table>
+        </div>
+        <ul id="metas-problems" class="problems"></ul>
+        <p class="hint">Horas en formato HH:mm. Meta mensual vacía = meta diaria × días laborables del mes. Si el fin es menor que el inicio, el turno termina al día siguiente (22:00 a 06:00). Los nombres y qué áreas se ven siguen siendo de cada pantalla.</p>
+      </section>
+
+      <section class="card" aria-labelledby="metas-screens-title">
+        <div class="section-head">
+          <h2 id="metas-screens-title">Pantallas que las reciben</h2>
+          <span class="muted" id="metas-count"></span>
+        </div>
+        <p class="hint">Solo las pantallas <b>aprobadas</b> reciben las metas: así ningún equipo desconocido puede leerlas. Llegan con el siguiente reporte de cada pantalla (5 min o menos).</p>
+        <ul id="metas-screens" class="rollout metas-screens"></ul>
+      </section>
+    </main>
+
     <!-- ============ Versions ============ -->
     <main class="page" id="view-versiones" hidden>
       <section class="card status" aria-labelledby="release-title">
@@ -290,6 +340,13 @@
           <span class="muted" id="screens-updated"></span>
           <button id="screens-refresh" class="btn" type="button">Actualizar</button>
         </div>
+      </section>
+      <section class="card command-bar" aria-label="Comandos para todas las pantallas">
+        <span class="command-label">Todas las pantallas:</span>
+        <button id="all-show" class="btn" type="button">Mostrar…</button>
+        <button id="all-refresh" class="btn" type="button">Actualizar datos</button>
+        <button id="all-restart" class="btn btn-danger-ghost" type="button">Reiniciar la app</button>
+        <span class="hint">Firmados con tu clave; las pantallas los hacen en 1 minuto o menos.</span>
       </section>
       <p id="screens-missing" class="notice" hidden>
         Falta la base de datos de pantallas: en Vercel, proyecto <b>dashboard-metas-anuncios</b> › <b>Storage</b> › conectar
@@ -372,6 +429,18 @@
     <form method="dialog" class="dialog-body">
       <h2 id="screen-title"></h2>
       <dl id="screen-facts" class="facts"></dl>
+      <div class="command-bar inline">
+        <span class="command-label">En esta pantalla:</span>
+        <button id="screen-show" class="btn btn-small" type="button">Mostrar…</button>
+        <button id="screen-refresh-data" class="btn btn-small" type="button">Actualizar datos</button>
+        <button id="screen-restart" class="btn btn-small btn-danger-ghost" type="button">Reiniciar la app</button>
+        <span class="spacer"></span>
+        <button id="screen-trust" class="btn btn-small" type="button"></button>
+      </div>
+      <div id="screen-commands-box" hidden>
+        <h3>Últimos comandos</h3>
+        <ul id="screen-commands" class="events"></ul>
+      </div>
       <h3>Historial</h3>
       <ul id="screen-events" class="events"></ul>
       <div class="dialog-actions">
@@ -379,6 +448,34 @@
         <span class="spacer"></span>
         <button id="screen-rename" class="btn" type="button">Cambiar nombre</button>
         <button class="btn btn-primary" value="close">Cerrar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ «Mostrar…» command ============ -->
+  <dialog id="command-dialog" class="dialog dialog-small" aria-labelledby="command-title">
+    <form class="dialog-body" id="command-form">
+      <h2 id="command-title">Mostrar</h2>
+      <label class="field">
+        <span class="label">Pantalla</span>
+        <select id="command-view"></select>
+      </label>
+      <label class="field" id="command-hold-row">
+        <span class="label">Mantenerla sin rotar</span>
+        <select id="command-hold">
+          <option value="0">No: cambia y sigue la rotación normal</option>
+          <option value="15">15 minutos</option>
+          <option value="30" selected>30 minutos</option>
+          <option value="60">1 hora</option>
+          <option value="120">2 horas</option>
+          <option value="240">4 horas</option>
+        </select>
+      </label>
+      <p class="hint">Útil en una reunión: la TV se queda en esa pantalla y después vuelve sola a rotar.</p>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button id="command-cancel" class="btn" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Firmar y enviar</button>
       </div>
     </form>
   </dialog>

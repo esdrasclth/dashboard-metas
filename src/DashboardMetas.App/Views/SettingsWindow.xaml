@@ -14,6 +14,17 @@
             <Setter Property="Padding" Value="14,6" />
             <Setter Property="FontSize" Value="13" />
         </Style>
+        <!-- Goals and shifts managed from the panel: shown, not editable here -->
+        <Style x:Key="ManagedCell" TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsManaged}" Value="True">
+                    <Setter Property="IsEnabled" Value="False" />
+                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                    <Setter Property="ToolTip" Value="Lo administra el panel (Metas y turnos)" />
+                    <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -90,18 +101,22 @@
                     <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,4,0,10"
                                Text="Nombre en español e inglés, metas en US$, horario del turno (HH:mm) y si el área se muestra. Meta mensual vacía = meta diaria × días laborables del mes. Si el fin es menor que el inicio, el turno termina al día siguiente (ej. 22:00 a 06:00); como JDE registra por fecha calendario, cada día cuenta las horas del turno que caen en esa fecha. La pausa es opcional y no cuenta como tiempo productivo." TextWrapping="Wrap" />
                     <Button DockPanel.Dock="Bottom" HorizontalAlignment="Left" Margin="0,10,0,0" Content="Copiar el horario de la primera fila a todas" Command="{Binding CopyShiftToAllCommand}" />
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,10" Padding="12,8" CornerRadius="6" Background="#EEF3FB"
+                            Visibility="{Binding ManagedNotice, Converter={StaticResource EmptyToCollapsed}}">
+                        <TextBlock Text="{Binding ManagedNotice}" TextWrapping="Wrap" />
+                    </Border>
                     <DataGrid ItemsSource="{Binding Areas}" CanUserSortColumns="False" RowHeight="34">
                         <DataGrid.Columns>
                             <DataGridCheckBoxColumn Header="Visible" Binding="{Binding Active, UpdateSourceTrigger=PropertyChanged}" Width="60" />
                             <DataGridTextColumn Header="Código" Binding="{Binding Code}" IsReadOnly="True" Width="60" ElementStyle="{StaticResource TextCell}" />
                             <DataGridTextColumn Header="Nombre" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="*" ElementStyle="{StaticResource TextCell}" />
                             <DataGridTextColumn Header="Nombre (inglés)" Binding="{Binding NameEn, UpdateSourceTrigger=PropertyChanged}" Width="*" ElementStyle="{StaticResource TextCell}" />
-                            <DataGridTextColumn Header="Meta diaria US$" Binding="{Binding GoalText, UpdateSourceTrigger=PropertyChanged}" Width="110" ElementStyle="{StaticResource NumberCell}" />
-                            <DataGridTextColumn Header="Meta mensual" Binding="{Binding MonthlyGoalText, UpdateSourceTrigger=PropertyChanged}" Width="110" ElementStyle="{StaticResource NumberCell}" />
-                            <DataGridTextColumn Header="Inicio" Binding="{Binding ShiftStart, UpdateSourceTrigger=PropertyChanged}" Width="58" ElementStyle="{StaticResource TextCell}" />
-                            <DataGridTextColumn Header="Fin" Binding="{Binding ShiftEnd, UpdateSourceTrigger=PropertyChanged}" Width="58" ElementStyle="{StaticResource TextCell}" />
-                            <DataGridTextColumn Header="Pausa de" Binding="{Binding BreakStart, UpdateSourceTrigger=PropertyChanged}" Width="70" ElementStyle="{StaticResource TextCell}" />
-                            <DataGridTextColumn Header="a" Binding="{Binding BreakEnd, UpdateSourceTrigger=PropertyChanged}" Width="58" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Meta diaria US$" Binding="{Binding GoalText, UpdateSourceTrigger=PropertyChanged}" CellStyle="{StaticResource ManagedCell}" Width="110" ElementStyle="{StaticResource NumberCell}" />
+                            <DataGridTextColumn Header="Meta mensual" Binding="{Binding MonthlyGoalText, UpdateSourceTrigger=PropertyChanged}" CellStyle="{StaticResource ManagedCell}" Width="110" ElementStyle="{StaticResource NumberCell}" />
+                            <DataGridTextColumn Header="Inicio" Binding="{Binding ShiftStart, UpdateSourceTrigger=PropertyChanged}" CellStyle="{StaticResource ManagedCell}" Width="58" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Fin" Binding="{Binding ShiftEnd, UpdateSourceTrigger=PropertyChanged}" CellStyle="{StaticResource ManagedCell}" Width="58" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="Pausa de" Binding="{Binding BreakStart, UpdateSourceTrigger=PropertyChanged}" CellStyle="{StaticResource ManagedCell}" Width="70" ElementStyle="{StaticResource TextCell}" />
+                            <DataGridTextColumn Header="a" Binding="{Binding BreakEnd, UpdateSourceTrigger=PropertyChanged}" CellStyle="{StaticResource ManagedCell}" Width="58" ElementStyle="{StaticResource TextCell}" />
                             <DataGridTextColumn Header="Fuente" Binding="{Binding SourceText}" IsReadOnly="True" Width="140" ElementStyle="{StaticResource TextCell}">
                                 <DataGridTextColumn.CellStyle>
                                     <Style TargetType="DataGridCell">

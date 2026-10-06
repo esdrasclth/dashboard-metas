@@ -19,6 +19,8 @@ Class Application
 
     Private Const SingleInstanceName As String = "Local\DashboardMetas.SingleInstance"
     Public Const CompanyFileName As String = "appsettings.empresa.json"
+    ''' <summary>Started by «reiniciar» from the panel: the previous process is letting go of the lock right now.</summary>
+    Public Const RestartArgument As String = "--reinicio"
 
     Private _host As IHost
     Private _singleInstance As Mutex
@@ -30,7 +32,7 @@ Class Application
         _singleInstance = New Mutex(True, SingleInstanceName, createdNew)
         ' Started by an automatic update: the previous version is letting go of the lock right now
         Dim afterUpdate = e.Args.Contains(UpdateService.AfterUpdateArgument)
-        If Not createdNew AndAlso afterUpdate Then
+        If Not createdNew AndAlso (afterUpdate OrElse e.Args.Contains(RestartArgument)) Then
             Try
                 createdNew = _singleInstance.WaitOne(TimeSpan.FromSeconds(20))
             Catch ex As AbandonedMutexException
@@ -110,6 +112,33 @@ Class Application
         End Try
     End Sub
 
+    ''' <summary>
+    ''' «Reiniciar» from the panel (UI thread): starts a new copy with the same arguments and closes this one. If the
+    ''' new copy cannot start, this one keeps running.
+    ''' </summary>
+    Public Sub Restart()
+        Dim exe = Environment.ProcessPath
+        If String.IsNullOrEmpty(exe) OrElse Not exe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) Then
+            Log.Warning("Reinicio pedido desde el panel, pero la app no corre desde DashboardMetas.exe; se ignora")
+            Return
+        End If
+        Dim info As New Diagnostics.ProcessStartInfo(exe) With {.UseShellExecute = False, .WorkingDirectory = Path.GetDirectoryName(exe)}
+        For Each a In Environment.GetCommandLineArgs().Skip(1).Where(Function(x) x <> RestartArgument AndAlso x <> UpdateService.AfterUpdateArgument)
+            info.ArgumentList.Add(a)
+        Next
+        info.ArgumentList.Add(RestartArgument)
+        ReleaseSingleInstance()
+        Try
+            Diagnostics.Process.Start(info)
+        Catch ex As Exception
+            Log.Error(ex, "No se pudo reiniciar la app")
+            AcquireSingleInstance()
+            Return
+        End Try
+        Log.Information("Reinicio pedido desde el panel: se abre una copia nueva y se cierra esta")
+        Shutdown()
+    End Sub
+
     Private Shared Function BuildHost(args As String(), paths As AppPaths) As IHost
         Dim builder = Host.CreateApplicationBuilder(New HostApplicationBuilderSettings With {
             .Args = Array.Empty(Of String)(),
@@ -151,7 +180,8 @@ Class Application
         services.AddSingleton(Of JdeSessionOpener)()
         services.AddSingleton(Of ProductionRefresher)()
 
-        ' App services
+        ' App services (the goals and shifts managed from the panel are laid over the saved preferences)
+        services.AddSingleton(Of RemoteConfigService)()
         services.AddSingleton(Of PreferencesStore)()
         services.AddSingleton(Of IAreaShiftProvider)(Function(sp) sp.GetRequiredService(Of PreferencesStore)())
         services.AddSingleton(Of UserSettingsWriter)()
@@ -167,6 +197,8 @@ Class Application
 
         ' Screen status reported to the panel, signed with this PC's own key
         services.AddSingleton(Of DeviceIdentity)()
+        ' Commands from the panel (they travel in the control file the announcements come from)
+        services.AddSingleton(Of RemoteCommandService)()
         services.AddSingleton(Of ScreenReporter)()
         services.AddHostedService(Function(sp) sp.GetRequiredService(Of ScreenReporter)())
 

@@ -23,10 +23,12 @@ Namespace Services
         Private ReadOnly _paths As AppPaths
         Private ReadOnly _dashboard As IOptionsMonitor(Of DashboardSettings)
         Private ReadOnly _logger As ILogger
+        Private ReadOnly _remote As RemoteConfigService
 
-        Public Sub New(paths As AppPaths, dashboard As IOptionsMonitor(Of DashboardSettings), logger As ILogger(Of PreferencesStore))
+        Public Sub New(paths As AppPaths, dashboard As IOptionsMonitor(Of DashboardSettings), remote As RemoteConfigService, logger As ILogger(Of PreferencesStore))
             _paths = paths
             _dashboard = dashboard
+            _remote = remote
             _logger = logger
         End Sub
 
@@ -41,6 +43,8 @@ Namespace Services
             End Try
             If prefs Is Nothing Then prefs = New DashboardPreferences()
             prefs.Normalize(_dashboard.CurrentValue)
+            ' Goals and shifts managed from the panel win over what was saved here
+            _remote.Current()?.ApplyTo(prefs)
             Return prefs
         End Function
 

@@ -67,6 +67,22 @@ Namespace Announcements
         ''' <summary>The file, the dismissed list or the status changed (raised on the calling thread).</summary>
         Public Event Changed As EventHandler
 
+        ''' <summary>A new control file arrived (raised before checking its announcements, on a background thread).</summary>
+        Public Event FileReceived As EventHandler(Of String)
+
+        ''' <summary>False for a control file that only carries commands (no announcements were ever published).</summary>
+        Private Shared Function CarriesAnnouncements(content As String) As Boolean
+            Try
+                Using doc = Text.Json.JsonDocument.Parse(content)
+                    Dim ignored As Text.Json.JsonElement
+                    Return doc.RootElement.ValueKind <> Text.Json.JsonValueKind.Object OrElse
+                           doc.RootElement.TryGetProperty("payload", ignored) OrElse doc.RootElement.TryGetProperty("format", ignored)
+                End Using
+            Catch ex As Text.Json.JsonException
+                Return True ' let the normal check report it
+            End Try
+        End Function
+
         ''' <summary>Restores the last valid file and the dismissed list saved on this PC.</summary>
         Public Sub Load()
             Dim saved As AnnouncementState = Nothing
@@ -113,6 +129,13 @@ Namespace Announcements
                 End Try
 
                 If fetch.NotModified Then
+                    Succeed(now, Nothing, Nothing)
+                    Return False
+                End If
+                ' The same file carries the panel's signed commands (checked by whoever handles them)
+                RaiseEvent FileReceived(Me, fetch.Content)
+                If Not CarriesAnnouncements(fetch.Content) Then
+                    ' Only commands so far: nothing published yet is not an error
                     Succeed(now, Nothing, Nothing)
                     Return False
                 End If
