@@ -1,6 +1,7 @@
 import { get, head, issueSignedToken, list, presignUrl, put } from "@vercel/blob";
 import { compareVersions, isForScreen, RELEASE_FORMAT, validateManifest } from "../public/releases.js";
 import { openEnvelope } from "./signing.js";
+import { signal } from "./store.js";
 
 // Versions (automatic updates) in the private Blob store:
 //   versiones/paquetes/<version>-<random>.zip   installer packages (uploaded by scripts/publish-version.mjs)
@@ -72,6 +73,7 @@ export async function saveRelease(text: string, manifest: ReleaseManifest): Prom
   const options = { access: "private" as const, contentType: "application/json", addRandomSuffix: false };
   await put(path(`${HISTORY}${String(manifest.release).padStart(12, "0")}.json`), text, { ...options, allowOverwrite: false });
   await put(path(CURRENT), text, { ...options, allowOverwrite: true, cacheControlMaxAge: 60 });
+  await signal({ release: manifest.release });
 }
 
 export async function releaseHistory(limit = 30): Promise<ReleaseManifest[]> {

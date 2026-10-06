@@ -1,13 +1,14 @@
 import { get, list, put } from "@vercel/blob";
 import { COMMAND_FORMAT, CONFIG_FORMAT, validateCommand, validateConfig } from "../public/remote.js";
 import { openEnvelope, type SignedFeed } from "./signing.js";
+import { signal } from "./store.js";
 
 // «Metas y turnos» (private Blob store, never public: goals in US$ are business data):
 //   metas/actual.json             the signed config the approved screens get in the reply to their report
 //   metas/historial/<rev>.json    every publication
-// Commands travel inside control/actual.json (see store.ts): signed, short-lived, harmless to read.
-// STORE_PREFIX ("dev/" in `vercel dev`) keeps local tests away from the real screens (config only: the control
-// file has no prefix, as the announcements).
+// Commands travel inside control/actual.json (see store.ts): signed, short-lived, harmless to read. Saving goals
+// only puts their revision number there, so the screens report at once and get them in the private reply.
+// STORE_PREFIX ("dev/" in `vercel dev`) keeps local tests away from the real screens.
 
 export interface AreaConfig {
   code: string;
@@ -78,6 +79,7 @@ export async function saveConfig(text: string, config: RemoteConfig): Promise<vo
   const options = { access: "private" as const, contentType: "application/json", addRandomSuffix: false };
   await put(path(`${CONFIG_HISTORY}${String(config.revision).padStart(12, "0")}.json`), text, { ...options, allowOverwrite: false });
   await put(path(CONFIG), text, { ...options, allowOverwrite: true, cacheControlMaxAge: 60 });
+  await signal({ config: config.revision });
 }
 
 export async function configHistory(limit = 20): Promise<RemoteConfig[]> {

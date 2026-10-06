@@ -85,6 +85,46 @@ Namespace Services
             ' The panel waits for these: report right away
             AddHandler commands.Changed, Sub() Wake()
             AddHandler remoteConfig.Changed, Sub() Wake()
+            AddHandler announcements.FileReceived, Sub(s, content) OnControlFile(content)
+        End Sub
+
+        Private _signalConfig As Long
+        Private _signalRelease As Long?
+
+        ''' <summary>
+        ''' The control file (checked every 30 s) carries the revision numbers of the panel's goals and version. When one
+        ''' changes, report now: the reply brings them, instead of waiting up to 5 minutes for the next report.
+        ''' </summary>
+        Private Sub OnControlFile(content As String)
+            Try
+                Dim config As Long, release As Long
+                Using doc = JsonDocument.Parse(content)
+                    Dim signals, value As JsonElement
+                    If doc.RootElement.ValueKind <> JsonValueKind.Object OrElse Not doc.RootElement.TryGetProperty("signals", signals) OrElse
+                       signals.ValueKind <> JsonValueKind.Object Then Return
+                    If signals.TryGetProperty("config", value) AndAlso value.ValueKind = JsonValueKind.Number Then value.TryGetInt64(config)
+                    If signals.TryGetProperty("release", value) AndAlso value.ValueKind = JsonValueKind.Number Then value.TryGetInt64(release)
+                End Using
+                Dim why As String = Nothing
+                SyncLock _gate
+                    ' New goals not applied here yet (once per revision: a screen not approved gets nothing anyway)
+                    If config > 0 AndAlso config <> _signalConfig Then
+                        _signalConfig = config
+                        If config > _remoteConfig.Status().Revision Then why = "hay metas nuevas"
+                    End If
+                    ' A version published or changed (paused, targets…) since the last file
+                    If release > 0 Then
+                        If _signalRelease.HasValue AndAlso _signalRelease.Value <> release Then why = If(why, "hay una versión nueva")
+                        _signalRelease = release
+                    End If
+                End SyncLock
+                If why IsNot Nothing Then
+                    _logger.LogInformation("Panel: {Why}; se reporta ahora", why)
+                    Wake()
+                End If
+            Catch ex As JsonException
+                ' not ours to judge: the announcements check reports a bad file
+            End Try
         End Sub
 
         Public Function Status() As ReporterStatus

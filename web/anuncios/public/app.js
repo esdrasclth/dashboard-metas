@@ -574,7 +574,7 @@ async function publish() {
   const active = announcements.filter((a) => statusOf(a) === "activo").length;
   const ok = await confirmDialog("Publicar", announcements.length === 0
     ? "Se publicará sin anuncios: las pantallas retirarán todos los que tengan."
-    : `Se publicarán ${announcements.length} anuncio(s) (${active} activo(s) ahora). Las pantallas los tomarán en su siguiente consulta, en 1 minuto o menos.`, "Publicar");
+    : `Se publicarán ${announcements.length} anuncio(s) (${active} activo(s) ahora). Las pantallas los tomarán en su siguiente consulta (unos 30 segundos).`, "Publicar");
   if (!ok) return;
 
   state.busy = true;
@@ -584,7 +584,7 @@ async function publish() {
     await api("/api/publish", { method: "POST", headers: { "content-type": "application/json" }, body: signed });
     localStorage.removeItem(DRAFT_KEY);
     await refresh(true);
-    toast(`Publicado (versión ${version}). Las pantallas lo muestran en 1 minuto o menos.`, "ok");
+    toast(`Publicado (versión ${version}). Las pantallas lo muestran en unos 30 segundos.`, "ok");
   } catch (error) {
     toast(error.details?.length ? `${error.message} ${error.details[0]}` : error.message, "error");
   } finally {

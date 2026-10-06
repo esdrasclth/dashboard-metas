@@ -78,6 +78,14 @@ Public Class RemoteControlTests
         Assert.Equal(y2Before, prefs.FindArea("Y2").DailyGoal)
     End Sub
 
+    <Fact>
+    Public Sub ControlFile_IsCheckedEvery30Seconds_EvenWithTheOldSavedDefault()
+        Assert.Equal(30, New Core.Configuration.AnnouncementSettings().EffectivePollSeconds())
+        Assert.Equal(30, New Core.Configuration.AnnouncementSettings With {.PollSeconds = 60}.EffectivePollSeconds()) ' saved by 1.2
+        Assert.Equal(120, New Core.Configuration.AnnouncementSettings With {.PollSeconds = 120}.EffectivePollSeconds())
+        Assert.Equal(30, New Core.Configuration.AnnouncementSettings With {.PollSeconds = 5}.EffectivePollSeconds())
+    End Sub
+
     ' ---- Commands
 
     <Fact>

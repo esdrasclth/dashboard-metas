@@ -21,7 +21,7 @@ Página web para redactar y publicar los anuncios que Dashboard Metas muestra en
 navegador (panel)                      Vercel                                   pantallas
   redactas → borrador (en el navegador)
   Publicar → firma con tu clave ──POST──> /api/publish: verifica firma,
-             (la clave no sale)            reglas y versión → Blob privado ──> /control.json (cada 60 s)
+             (la clave no sale)            reglas y versión → Blob privado ──> /control.json (cada 30 s)
 ```
 
 - **Dos llaves para publicar:** la contraseña del panel y la clave privada de firma. La clave se carga una vez en el
@@ -48,9 +48,12 @@ navegador (panel)                      Vercel                                   
   `{action:"trust"}`) y solo cuando la suya no es la actual.
 - **Comandos:** firmados en el navegador (`dashboardmetas-comando/1`: id, vencimiento ≤ 60 min, destinos = ids de
   pantalla o todas, acción). `POST /api/commands` los verifica y los agrega a `control/actual.json` (campo `commands`,
-  junto a los anuncios), así cada pantalla los recibe en su siguiente consulta (≤ 1 min) sin costo extra. Los vencidos
+  junto a los anuncios), así cada pantalla los recibe en su siguiente consulta (≤ 30 s) sin costo extra. Los vencidos
   se descartan al escribir. Las pantallas devuelven el resultado en su reporte. Las versiones de la app sin comandos
   ignoran ese campo.
+- **Señales:** al guardar metas o una versión, `control/actual.json` recibe `signals: {config, release}` (solo los
+  números de revisión). La pantalla que ve un número nuevo reporta al momento y recibe lo nuevo en la respuesta, en ~30 s
+  en vez de esperar su reporte de cada 5 minutos.
 - `/control.json` es público a propósito (solo trae anuncios firmados que las pantallas muestran igual) y responde con
   ETag y `no-cache`: una pantalla sin cambios recibe 304.
 

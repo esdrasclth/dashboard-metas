@@ -75,7 +75,7 @@ async function send(command, question) {
   try {
     const signed = await signEnvelope(COMMAND_FORMAT, full, key.privateKey, key.keyId);
     await deps.api("/api/commands", { method: "POST", headers: { "content-type": "application/json" }, body: signed });
-    deps.toast(`«${describeCommand(full, areaName)}» enviado a ${commandTargets.label}. Lo hacen en 1 minuto o menos.`, "ok");
+    deps.toast(`«${describeCommand(full, areaName)}» enviado a ${commandTargets.label}. Lo hacen en unos 30 segundos.`, "ok");
     // The screens confirm with their next report: refresh the list a bit later
     setTimeout(() => deps.reloadScreens().catch(() => {}), 75_000);
     return true;
@@ -217,7 +217,7 @@ async function publishConfig() {
   const text = !approved
     ? "Todavía no hay pantallas aprobadas: se publica, pero ninguna TV la recibe hasta que apruebes alguna (abajo)."
     : c.areas.length
-      ? `${who} ${approved === 1 ? "usará" : "usarán"} estas metas y turnos para ${c.areas.map((a) => a.code).join(", ")} en su siguiente reporte (5 min o menos). En cada TV esas áreas quedan bloqueadas en Configuración.`
+      ? `${who} ${approved === 1 ? "usará" : "usarán"} estas metas y turnos para ${c.areas.map((a) => a.code).join(", ")} en unos 30 segundos. En cada TV esas áreas quedan bloqueadas en Configuración.`
       : `${who} ${approved === 1 ? "vuelve" : "vuelven"} a usar sus propias metas y turnos.`;
   if (!(await deps.confirmDialog("Publicar metas y turnos", text, "Firmar y publicar"))) return;
   try {

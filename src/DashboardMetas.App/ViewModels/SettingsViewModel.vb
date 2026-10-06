@@ -386,7 +386,7 @@ Namespace ViewModels
             End Set
         End Property
 
-        Private _announcementPollSeconds As String = "60"
+        Private _announcementPollSeconds As String = "30"
         Public Property AnnouncementPollSeconds As String
             Get
                 Return _announcementPollSeconds
@@ -603,7 +603,7 @@ Namespace ViewModels
         Private Sub LoadAnnouncements(a As AnnouncementSettings)
             AnnouncementsEnabled = a.Enabled
             AnnouncementUrl = If(a.FeedUrl, String.Empty)
-            AnnouncementPollSeconds = a.PollSeconds.ToString(CultureInfo.InvariantCulture)
+            AnnouncementPollSeconds = a.EffectivePollSeconds().ToString(CultureInfo.InvariantCulture)
             LoadAnnouncementStatus()
         End Sub
 

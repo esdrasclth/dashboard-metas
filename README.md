@@ -132,7 +132,7 @@ cada 5 min ──> una conexión ODBC (DSN de 32 bits, IBM i Access) ──> 4 c
 | Configuración y DI | Microsoft.Extensions.Hosting |
 | Logs | Serilog a archivo diario |
 | Seguridad | DPAPI (`ProtectedData`, alcance usuario); anuncios firmados con ECDSA P-256 |
-| Pruebas | xUnit en VB, 186 pruebas |
+| Pruebas | xUnit en VB, 187 pruebas |
 | Publicación | Un solo `.exe` win-x86 self-contained, portable, sin administrador |
 
 ## Requisitos
@@ -240,7 +240,7 @@ Para avisar algo a las pantallas sin ir a cada PC: un inventario, un cambio de m
 ```text
 panel web ──Publicar (firma en tu navegador)──> https://dashboard-metas-anuncios.vercel.app/control.json
                                                                            ▲
-                                cada PC con Dashboard Metas ──cada 60 s────┘  → tarjeta o franja en pantalla
+                                cada PC con Dashboard Metas ──cada 30 s────┘  → tarjeta o franja en pantalla
 ```
 
 **Seguridad.** El archivo va firmado (ECDSA P-256) con una clave privada que solo tiene quien publica; la app trae la
@@ -261,7 +261,7 @@ Configuración › Anuncios y en Diagnóstico.
    navegador sin poder copiarse y **nunca se envía**; firma ahí mismo.
 3. **+ Nuevo anuncio**: título, mensaje, urgencia, tarjeta o franja, desde/hasta, pantallas, inglés opcional. La vista
    previa es igual a como sale en la TV.
-4. **Publicar**. Las pantallas lo muestran en 1 minuto o menos.
+4. **Publicar**. Las pantallas lo muestran en unos 30 segundos.
 
 Para retirar un anuncio: **Eliminar** y **Publicar**. El **historial** guarda cada publicación y permite recuperarla.
 El servidor solo guarda archivos que la app aceptaría (firma, reglas y versión), así que con la contraseña sola no se
@@ -381,7 +381,7 @@ por PC en Configuración › Anuncios › «Actualizaciones automáticas».
 
 **Metas y turnos.** En la pestaña **Metas y turnos** marcas las áreas que administra el panel y escribes su meta
 diaria, meta mensual, turno y pausa. Con **Firmar y publicar** llegan a todas las pantallas **aprobadas** en su siguiente
-reporte (5 min o menos). En cada TV esas áreas quedan bloqueadas en Configuración › Áreas y metas, con un aviso de que
+reporte, en unos 30 segundos. En cada TV esas áreas quedan bloqueadas en Configuración › Áreas y metas, con un aviso de que
 las administra el panel. Los nombres y qué áreas se ven siguen siendo de cada pantalla. Publicar sin ninguna área marcada
 devuelve el control a cada pantalla.
 
@@ -399,7 +399,7 @@ devuelve el control a cada pantalla.
 | **Actualizar datos** | Consulta JDE ahora, sin esperar los 5 minutos |
 | **Reiniciar la app** | Cierra y vuelve a abrir Dashboard Metas (unos segundos) |
 
-Llegan en **1 minuto o menos**: viajan en el mismo archivo que los anuncios, que cada pantalla consulta cada minuto. Van
+Llegan en **unos 30 segundos**: viajan en el mismo archivo que los anuncios, que cada pantalla consulta cada 30 s. Van
 firmados, valen 10 minutos y cada pantalla ejecuta cada uno **una sola vez**: un «Reiniciar» nunca se repite al volver
 a abrir. El resultado (hecho o por qué no) aparece en el detalle de la pantalla, en «Últimos comandos».
 

@@ -158,10 +158,17 @@ Namespace Configuration
         ''' (\\servidor\carpeta\control.json). Empty = announcements off.
         ''' </summary>
         Public Property FeedUrl As String = DefaultFeedUrl
-        ''' <summary>Seconds between checks of the control file.</summary>
-        Public Property PollSeconds As Integer = 60
+        ''' <summary>
+        ''' Seconds between checks of the control file. It also carries the panel's commands and the signals of new goals
+        ''' or versions, so it sets how fast the screen reacts. An unchanged file costs the panel a 304.
+        ''' </summary>
+        Public Property PollSeconds As Integer = DefaultPollSeconds
+        Public Const DefaultPollSeconds As Integer = 30
+        ''' <summary>The default up to 1.2: settings saved by those versions carry it, and it means «the default».</summary>
+        Private Const LegacyDefaultPollSeconds As Integer = 60
 
         Public Function EffectivePollSeconds() As Integer
+            If PollSeconds = LegacyDefaultPollSeconds Then Return DefaultPollSeconds
             Return Math.Clamp(PollSeconds, MinPollSeconds, MaxPollSeconds)
         End Function
 
