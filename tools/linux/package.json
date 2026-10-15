@@ -1,0 +1,10 @@
+{
+  "name": "dashboard-metas-linux-build",
+  "private": true,
+  "description": "Publicar Dashboard Metas desde Linux: copia los recursos Win32 (versión, ícono, manifiesto) al host del exe",
+  "type": "module",
+  "dependencies": {
+    "pe-library": "2.0.1",
+    "resedit": "3.1.0"
+  }
+}

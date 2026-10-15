@@ -1,0 +1,9 @@
+<Project>
+  <!-- Only for publishing from Linux (publicar.sh): give the single-file host the app's version and icon before it is
+       bundled. On Windows the SDK already does it. -->
+  <Target Name="CopiarRecursosAlHost"
+          AfterTargets="_CreateSingleFileHost"
+          Condition="'$(_UseSingleFileHostForPublish)' == 'true' and !$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="node &quot;$(MSBuildThisFileDirectory)copiar-recursos.mjs&quot; &quot;@(IntermediateAssembly->'%(FullPath)')&quot; &quot;$(SingleFileHostIntermediatePath)&quot;" />
+  </Target>
+</Project>

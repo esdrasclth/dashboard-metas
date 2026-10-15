@@ -356,6 +356,11 @@ npm run publicar-version -- --notas "Qué cambió" --destinos "equipo:NOMBRE-PC"
 | `--pausa` | Se publica en pausa |
 | `--permitir-bajar` | Permite instalar una versión más vieja (volver atrás a propósito) |
 
+**Desde Linux** (el servidor): `./publicar.sh` en vez de `publicar.cmd` (necesita el SDK de .NET 10 y Node). El SDK
+solo copia la versión y el ícono al exe en Windows; `tools/linux` lo hace en Linux, porque sin eso las pantallas
+rechazarían el paquete. `publicar-version` toma la clave de `~/.config/dashboard-metas/clave-privada-anuncios.pem` y
+`PANEL_PASSWORD` y `BLOB_READ_WRITE_TOKEN` de `~/.config/dashboard-metas/publicar.env` (ambos `chmod 600`).
+
 En la pestaña **Versiones** del panel se ve cuántas pantallas ya tienen la versión y en qué paso va cada una. Desde ahí
 se puede **pausar**, cambiar los **destinos**, instalar **ahora** o **volver a una versión anterior**. Cada cambio se
 firma con la clave, igual que los anuncios.
